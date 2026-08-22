@@ -20,7 +20,7 @@ markdown. The defaults are one engineer's and are meant to be replaced.
 | 3 — score | **Built, never run.** Prompt, schema, storage and tests are done; it has not yet made a single real API call. |
 | Queue output | **Working.** Writes `queue/YYYY-MM-DD.md` and appends to `out/applications.csv`. |
 | 4 — draft | **Not built.** Queue entries carry no cover-letter opener. |
-| Evals | **Not built.** No precision or recall numbers exist yet. |
+| Evals | **Harness built, unlabelled.** `jobfit label` / `jobfit eval` work; nobody has hand-labelled a set yet, so no precision or recall numbers exist. |
 
 Being blunt about what that means: the funnel runs end to end and produces a
 queue you can read, but nobody has measured whether the scores are any good.
@@ -337,14 +337,22 @@ downgraded to `low` and the event is logged.
 Measured against 39 surviving postings with an average description of ~1,040
 tokens and a ~2,900-token cached prefix:
 
-| Model | Per run | With the Batch API | Monthly, nightly |
-|---|---|---|---|
-| Sonnet 5 | $0.35 | $0.17 | ~$5.20 |
-| Haiku 4.5 | $0.12 | $0.06 | ~$1.70 |
+**Measured**, scoring 39 real postings on Sonnet 5:
 
-The cached prefix is only ~72% of the input — the posting text is the rest and
-cannot be cached, so caching helps but the funnel shape and the Batch API are
-the bigger levers. Which model is good enough is an eval question, not a guess;
+| | tokens | note |
+|---|---|---|
+| Cache reads | 193,762 | 38 of 39 calls, billed at ~10% |
+| Cache writes | 5,099 | once, the first call |
+| Uncached input | 57,253 | the posting text, ~1,470 per posting |
+| Output | 23,653 | ~606 per posting |
+| **Total** | | **$0.615**, or ~$0.31 with the Batch API |
+
+That is nearly double an earlier estimate, and the reason is worth recording:
+output tokens ran ~600 per posting rather than the ~300 guessed, because honest
+`why_fit` and `why_not` bullets are not short. Output is billed at 5x input, so
+it dominates. Caching worked exactly as designed — one write, 38 reads — and the
+cached prefix is only ~72% of the input, so the funnel shape and the Batch API
+are the bigger levers. Which model is good enough is an eval question, not a guess;
 the client is injected, so swapping it is one line.
 
 `prompt_version` — a hash of the cached prefix — is stored with every score, so
@@ -469,6 +477,44 @@ changing shape is a red test rather than a silent zero-posting run. Stage 3 uses
 an injected fake client, so the eval loop never spends tokens.
 
 Requires Python 3.11 or newer.
+
+## Evals
+
+The part that separates this from a demo, and the part most likely to get cut.
+
+```bash
+jobfit label                  # appends unlabelled postings to evals/labeled.jsonl
+$EDITOR evals/labeled.jsonl   # fill in: apply | skip | borderline, plus one line of reason
+jobfit eval                   # offline — measures stored scores against your labels
+jobfit eval --note "widened stack aliases"   # also logs a row to evals/results.md
+```
+
+`jobfit eval` never calls the API. It compares scores already in the database
+against your labels, so the loop costs nothing to re-run and the whole suite
+works on a plane.
+
+Three choices in how the numbers are reported, each defensible:
+
+**Counts before ratios.** With forty hand-labelled postings the third decimal of
+a precision figure is noise. The report leads with `2 of 3` and prints a margin
+of error, because a count is checkable and a bare ratio invites more confidence
+than the sample supports.
+
+**Borderline labels are excluded from precision and recall.** They exist to
+study disagreement, not to be graded. Folding them into either class would make
+the headline number depend on a judgement the label explicitly declines to make.
+They are reported separately — read them and decide who was right.
+
+**Unscored postings are named, not dropped.** Silently ignoring a labelled
+posting that was never scored would inflate recall.
+
+Optimise for precision over recall. A false positive costs twenty minutes and a
+wasted application; a false negative costs one posting out of hundreds.
+
+`evals/results.md` gets one row per run, recording the rubric version alongside
+the numbers. Never change the rubric and the threshold in the same run — if the
+numbers move you need to know which one did it. `jobfit eval` warns when the
+stored scores come from more than one rubric version.
 
 ## What is deliberately not here
 

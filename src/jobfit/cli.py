@@ -11,7 +11,7 @@ import shutil
 import sys
 from pathlib import Path
 
-from jobfit import ingest, prefilter, queue, score
+from jobfit import evals, ingest, prefilter, queue, score
 
 TEMPLATES = Path(__file__).parent / "templates"
 
@@ -29,6 +29,8 @@ COMMANDS = {
     "prefilter": prefilter.main,
     "score": score.main,
     "queue": queue.main,
+    "label": evals.label_main,
+    "eval": evals.eval_main,
 }
 
 USAGE = """usage: jobfit <command> [options]
@@ -39,6 +41,8 @@ commands:
   prefilter   stage 2 — apply the deterministic rules to stored postings
   score       stage 3 — score surviving postings against your CV (uses the API)
   queue       write queue/YYYY-MM-DD.md and append to out/applications.csv
+  label       append unlabelled postings to the eval set for hand labelling
+  eval        measure the scorer against your labels (offline, no API calls)
 
 `jobfit <command> --help` describes a command's options."""
 
