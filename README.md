@@ -92,8 +92,6 @@ Every stage exits non-zero when something is wrong — a feed changed shape, the
 filter fell outside its expected band — so a failure reaches you through cron's
 mail rather than sitting silently in the database.
 
-<<<<<<< HEAD
-=======
 ## Project layout
 
 The repository holds code and templates. **Everything personal is created on
@@ -126,7 +124,6 @@ here so prompt changes show up in a diff. `jobfit init` copies it to
 `prompts/score_system.md` for you to tune. If you have not run `init`, `jobfit
 score` falls back to the bundled copy and logs which one it used.
 
->>>>>>> 844dd39 (Stages 1-3 plus queue output)
 ## Stage 1 — ingest
 
 ```bash
