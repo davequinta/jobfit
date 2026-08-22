@@ -532,10 +532,27 @@ The part that separates this from a demo, and the part most likely to get cut.
 
 ```bash
 jobfit label                  # appends unlabelled postings to evals/labeled.jsonl
+jobfit label --rewrite        # refresh unlabelled entries, keeping labels you have made
 $EDITOR evals/labeled.jsonl   # fill in: apply | skip | borderline, plus one line of reason
 jobfit eval                   # offline — measures stored scores against your labels
 jobfit eval --note "widened stack aliases"   # also logs a row to evals/results.md
 ```
+
+Each line carries enough to decide without opening the link — title, company,
+location, salary, date, the stack keywords stage 2 matched, and an excerpt:
+
+```json
+{"url": "...", "company": "Acme", "title": "Senior Engineer",
+ "location": "Anywhere in the World", "salary": "$120k - $150k",
+ "posted": "2026-08-19", "stack_seen": ["python", "react"],
+ "excerpt": "We need someone to own our Django backend…",
+ "label": "", "reason": ""}
+```
+
+**It deliberately does not show you the model's score.** Seeing "the model said
+78" before you decide anchors the label, and measuring the model against labels
+it influenced is circular. `stack_seen` is stage 2's keyword match — there is no
+judgement in it.
 
 `jobfit eval` never calls the API. It compares scores already in the database
 against your labels, so the loop costs nothing to re-run and the whole suite

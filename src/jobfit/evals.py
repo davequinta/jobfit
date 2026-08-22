@@ -37,6 +37,9 @@ from jobfit import ingest, score as score_stage
 
 LABELS = {"apply", "skip", "borderline"}
 
+# Long enough to judge, short enough that the file stays scannable in an editor.
+EXCERPT_CHARS = 320
+
 
 @dataclass
 class Outcome:
@@ -160,12 +163,22 @@ def _ratio_line(name: str, numerator: int, denominator: int, gloss: str) -> str:
     )
 
 
+def _excerpt(text: str) -> str:
+    flat = " ".join((text or "").split())
+    return flat if len(flat) <= EXCERPT_CHARS else flat[:EXCERPT_CHARS] + "…"
+
+
 def label_skeleton(rows, already: set[str] | None = None) -> list[str]:
     """JSONL lines for postings that still need a hand label.
 
     Hand-labelling forty postings is the step most likely to be skipped, so each
-    line carries enough context to judge without opening the link — fill in one
-    word and move on.
+    line carries enough context to decide without opening the link.
+
+    What it deliberately does NOT carry is the model's verdict. Seeing "the
+    model said 78" before deciding anchors the label, and measuring the model
+    against labels it influenced is circular. Everything here is either the
+    posting itself or `stack_seen`, which is stage 2's deterministic keyword
+    match — no judgement in it.
     """
     already = already or set()
     return [
@@ -173,12 +186,39 @@ def label_skeleton(rows, already: set[str] | None = None) -> list[str]:
             "url": row["url"],
             "company": row["company"],
             "title": row["title"],
-            "location": row["location_raw"] or "",
+            "location": row["location_raw"] or "not stated",
+            "salary": row["salary_raw"] or "not stated",
+            "posted": (row["published_at"] or "")[:10],
+            "stack_seen": json.loads(row["stack_hits_json"] or "[]"),
+            "excerpt": _excerpt(row["description_text"]),
             "label": "",           # apply | skip | borderline
             "reason": "",          # one line, for your future self
         }, ensure_ascii=False)
         for row in rows if row["url"] not in already
     ]
+
+
+def rewrite_unlabelled(existing_lines: list[str], rows) -> list[str]:
+    """Keep every line you have already labelled; refresh the rest with context.
+
+    Lets an existing bare skeleton be upgraded in place without losing work.
+    """
+    kept, unlabelled = [], set()
+    for line in existing_lines:
+        if not line.strip():
+            continue
+        record = json.loads(line)
+        if record.get("label"):
+            kept.append(json.dumps(record, ensure_ascii=False))
+        else:
+            unlabelled.add(record["url"])
+
+    labelled_urls = {json.loads(line)["url"] for line in kept}
+    fresh = [
+        line for line in label_skeleton(rows)
+        if json.loads(line)["url"] not in labelled_urls
+    ]
+    return kept + fresh
 
 
 def results_entry(outcome: Outcome, threshold: int, day: str,
@@ -226,6 +266,8 @@ def label_main(argv: list[str] | None = None) -> int:
     parser.add_argument("--db")
     parser.add_argument("--out", default=str(LABELS_PATH))
     parser.add_argument("--limit", type=int, default=40)
+    parser.add_argument("--rewrite", action="store_true",
+                        help="refresh unlabelled entries with full context, keeping your labels")
     args = parser.parse_args(argv)
 
     out = Path(args.out)
@@ -233,7 +275,8 @@ def label_main(argv: list[str] | None = None) -> int:
     conn = _open_db(args)
     try:
         rows = conn.execute(
-            """SELECT p.url, p.company, p.title, p.location_raw
+            """SELECT p.url, p.company, p.title, p.location_raw, p.salary_raw,
+                      p.published_at, p.description_text, v.stack_hits_json
                  FROM postings p
                  JOIN prefilter_verdicts v ON v.posting_id = p.id
                 WHERE v.rejected_reason IS NULL
@@ -242,13 +285,21 @@ def label_main(argv: list[str] | None = None) -> int:
     finally:
         conn.close()
 
-    lines = label_skeleton(rows, already)[: args.limit]
     out.parent.mkdir(parents=True, exist_ok=True)
-    with out.open("a") as handle:
-        for line in lines:
-            handle.write(line + "\n")
-
-    print(f"{len(lines)} postings appended to {out}")
+    if args.rewrite and out.is_file():
+        lines = rewrite_unlabelled(out.read_text().splitlines(), rows)
+        out.write_text("\n".join(lines) + "\n")
+        print(f"{out} rewritten: {len(lines)} entries, your labels kept")
+    else:
+        present = already | (
+            {json.loads(line)["url"] for line in out.read_text().splitlines() if line.strip()}
+            if out.is_file() else set()
+        )
+        lines = label_skeleton(rows, present)[: args.limit]
+        with out.open("a") as handle:
+            for line in lines:
+                handle.write(line + "\n")
+        print(f"{len(lines)} postings appended to {out}")
     print('Fill in "label" with apply | skip | borderline, and one line of "reason".')
     print("Aim for roughly 15 apply, 15 skip, 10 borderline — the borderline ones")
     print("are where you learn whether the scorer or you is wrong.")

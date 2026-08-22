@@ -19,6 +19,16 @@ def labelled(**kw) -> dict:
             "reason": kw.get("reason", "")}
 
 
+ROW = {
+    "url": "https://a", "company": "Acme", "title": "Senior Engineer",
+    "location_raw": "Anywhere in the World", "salary_raw": "$120k - $150k",
+    "published_at": "2026-08-19T09:00:00+00:00",
+    "stack_hits_json": '["python", "react"]',
+    "description_text": "We need someone to own our Django backend. " * 40,
+}
+
+
+
 # --- precision and recall ----------------------------------------------------
 
 
@@ -163,25 +173,8 @@ def test_a_blank_line_in_the_jsonl_is_skipped(tmp_path):
 # tool has to make it cheap: emit the skeleton, fill in one word per line.
 
 
-def test_label_skeleton_carries_enough_to_judge_without_opening_the_link():
-    rows = [
-        {"url": "https://a", "company": "Acme", "title": "Senior Engineer",
-         "location_raw": "Anywhere in the World"},
-    ]
-
-    lines = evals.label_skeleton(rows)
-    record = json.loads(lines[0])
-
-    assert record["url"] == "https://a"
-    assert record["company"] == "Acme"
-    assert record["title"] == "Senior Engineer"
-    assert record["label"] == ""      # the one field a human fills in
-    assert record["reason"] == ""
-
-
 def test_label_skeleton_omits_postings_already_labelled():
-    rows = [{"url": "https://a", "company": "A", "title": "T", "location_raw": None},
-            {"url": "https://b", "company": "B", "title": "T", "location_raw": None}]
+    rows = [{**ROW, "url": "https://a"}, {**ROW, "url": "https://b"}]
 
     lines = evals.label_skeleton(rows, already={"https://a"})
 
@@ -215,3 +208,62 @@ def test_results_entry_records_the_numbers_and_why_they_moved():
     assert "abc123" in entry          # which rubric produced these numbers
     assert "widened stack aliases" in entry
     assert "1 of 2" in entry
+
+
+# --- labelling blind ---------------------------------------------------------
+
+
+def test_the_skeleton_carries_enough_context_to_label_without_opening_the_link():
+    record = json.loads(evals.label_skeleton([ROW])[0])
+
+    assert record["company"] == "Acme"
+    assert record["title"] == "Senior Engineer"
+    assert record["location"] == "Anywhere in the World"
+    assert record["salary"] == "$120k - $150k"
+    assert record["posted"] == "2026-08-19"
+    assert record["stack_seen"] == ["python", "react"]
+    assert "Django backend" in record["excerpt"]
+
+
+def test_the_skeleton_never_shows_the_models_verdict():
+    """Labels must be independent judgement.
+
+    Seeing "the model said 78" before deciding anchors the label, and measuring
+    the model against labels it influenced is circular. Everything in the file
+    is either the posting itself or deterministic keyword matching.
+    """
+    row = {**ROW, "fit_score": 78, "why_not_json": '["not senior enough"]',
+           "confidence": "high"}
+
+    record = json.loads(evals.label_skeleton([row])[0])
+
+    assert "fit_score" not in record
+    assert "why_not" not in record
+    assert "confidence" not in record
+    assert "78" not in json.dumps(record)
+
+
+def test_the_excerpt_is_truncated_so_the_file_stays_scannable():
+    record = json.loads(evals.label_skeleton([ROW])[0])
+
+    assert len(record["excerpt"]) <= evals.EXCERPT_CHARS + 1  # +1 for the ellipsis
+
+
+def test_a_missing_salary_reads_as_not_stated_rather_than_null():
+    record = json.loads(evals.label_skeleton([{**ROW, "salary_raw": None}])[0])
+
+    assert record["salary"] == "not stated"
+
+
+def test_rewriting_keeps_labels_you_have_already_made():
+    existing = [
+        json.dumps({"url": "https://a", "label": "apply", "reason": "good stack"}),
+        json.dumps({"url": "https://b", "label": "", "reason": ""}),
+    ]
+
+    lines = evals.rewrite_unlabelled(existing, [{**ROW, "url": "https://b"}])
+
+    assert json.loads(lines[0])["label"] == "apply"        # untouched
+    assert json.loads(lines[0])["reason"] == "good stack"
+    assert json.loads(lines[1])["company"] == "Acme"       # refreshed with context
+    assert json.loads(lines[1])["label"] == ""
