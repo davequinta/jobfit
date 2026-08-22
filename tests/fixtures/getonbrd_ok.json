@@ -1,0 +1,355 @@
+{
+  "data": [
+    {
+      "id": "senior-software-engineer-java-angular-english-23people-santiago-e811",
+      "type": "job",
+      "attributes": {
+        "title": "Senior Software Developer Java/Spring Boot (English)",
+        "description_headline": "Skills",
+        "description": "<p><strong>Técnicas<br></strong></p><ul><li>4+ años de experiencia Java</li><li>4+ años de experiencia Spring Boot</li><li>4+ años de experiencia PostgresDB</li><li>4+ años de experiencia Experiencia en nube (AWS/GCP)</li><li>Inglés B2 (interacción diaria en reuniones)</li></ul><p><strong>Personales",
+        "projects": "<div>Equifax es mucho más que una empresa de informes; es una compañía global líder en datos, analítica y tecnología con presencia en 24 países. En Chile, operan desde 1979 entregando soluciones críticas de ciberseguridad, identidad y riesgo a más de 14.000 empresas.</div><div>El Hub Tecnológico (SD",
+        "functions_headline": "Funciones del cargo",
+        "functions": "<p><strong>¿Qué harás en tu día a día?</strong></p><p>El Senior Developer se integrará a la plataforma <strong>My Equifax (D2C), desarrollando soluciones backend con Java y Spring Boot, gestionando bases de datos PostgreSQL y desplegando en entornos cloud AWS/GCP.</strong> Participará en daily meeti",
+        "benefits_headline": "Beneficios",
+        "benefits": "<div>Algunos de nuestros beneficios</div><ul><li><strong>Seguro complementario</strong>: Seguro de salud, vida y dental</li><li><strong>Curso de inglés</strong>: En nuestro programa de formación en idioma inglés, ofrecemos dos modalidades para adaptarnos a tus necesidades y objetivos.</li><li><stron",
+        "desirable_headline": "Opcional",
+        "desirable": "<p>------------------------------------------------------<br>CVs ENVIADOS EN INGLÉS SERÁN ALTAMENTE VALORADOS<br>----------------------------------------------------------</p>",
+        "remote": true,
+        "remote_modality": "remote_local",
+        "remote_zone": null,
+        "countries": [
+          "Remote"
+        ],
+        "lang": "lang_not_specified",
+        "rejected_reasons": [],
+        "category_name": "Programming",
+        "perks": [
+          "wellness",
+          "flexible_hours",
+          "life_insurance",
+          "health_coverage",
+          "computer_repairs",
+          "dental_insurance",
+          "computer_provided",
+          "education_stipend",
+          "shopping_discounts",
+          "vacation_on_birthday"
+        ],
+        "min_salary": 2900,
+        "max_salary": 3200,
+        "published_at": 1787322328,
+        "response_time_in_days": {
+          "min": null,
+          "max": null
+        },
+        "applications_count": 301,
+        "location_regions": {
+          "data": []
+        },
+        "location_tenants": {
+          "data": [
+            {
+              "id": 1,
+              "type": "location_tenant"
+            }
+          ]
+        },
+        "location_cities": {
+          "data": []
+        },
+        "modality": {
+          "data": {
+            "id": 1,
+            "type": "modality"
+          }
+        },
+        "seniority": {
+          "data": {
+            "id": 4,
+            "type": "seniority"
+          }
+        },
+        "tags": {
+          "data": [
+            {
+              "id": 2,
+              "type": "tag"
+            },
+            {
+              "id": 587,
+              "type": "tag"
+            },
+            {
+              "id": 51,
+              "type": "tag"
+            },
+            {
+              "id": 887,
+              "type": "tag"
+            },
+            {
+              "id": 235,
+              "type": "tag"
+            },
+            {
+              "id": 36857,
+              "type": "tag"
+            },
+            {
+              "id": 36886,
+              "type": "tag"
+            }
+          ]
+        },
+        "company": {
+          "data": {
+            "id": 4457,
+            "type": "company"
+          }
+        }
+      },
+      "links": {
+        "public_url": "https://www.getonbrd.com/jobs/senior-software-engineer-java-angular-english-23people-santiago-e811"
+      }
+    },
+    {
+      "id": "ux-engineer-senior-admoai-santiago-4b10",
+      "type": "job",
+      "attributes": {
+        "title": "UX Engineer (Senior)",
+        "description_headline": "Requerimientos del cargo",
+        "description": "<ul><li><strong>5+ años de experiencia profesional en desarrollo front-end</strong>, construyendo aplicaciones web en producción con <strong>React, Next.js, TypeScript, HTML y CSS</strong>.</li><li><strong>Fundamentos sólidos de ingeniería de software</strong>, con capacidad para escribir código lim",
+        "projects": "<p>Somos una startup tecnológica que está revolucionando cómo las marcas se conectan con las personas en movimiento. Tras levantar una ronda pre-semilla de <strong>USD $2,5 millones</strong>, estamos construyendo desde Chile una compañía global, con clientes y operaciones en cinco países de Reino Un",
+        "functions_headline": "Funciones del cargo",
+        "functions": "<ul><li><strong>Desarrollar y evolucionar el front-end del Ad Manager</strong> y otros productos digitales utilizando <strong>Next.js, React y TypeScript</strong>, llevando requerimientos desde el mockup hasta producción con autonomía, velocidad y alta calidad técnica.</li><li><strong>Asumir progres",
+        "benefits_headline": "Condiciones",
+        "benefits": "<ul><li><strong>Un asiento en primera fila en una startup multinacional</strong> con alto potencial de crecimiento explosivo, tu trabajo influirá directamente en nuestro rumbo.</li><li><strong>Compensación competitiva</strong> y opción de Stock Options.</li><li><strong>Cobertura de Salud:</strong> S",
+        "desirable_headline": "Deseables",
+        "desirable": "<ul><li><strong>Buen criterio de UX y diseño de interfaces</strong>, especialmente para simplificar productos complejos, formularios, tablas, dashboards, configuraciones avanzadas y distintos estados de interfaz.</li><li>Experiencia en <strong>productos SaaS B2B, herramientas internas o plataformas ",
+        "remote": false,
+        "remote_modality": "hybrid",
+        "remote_zone": null,
+        "countries": [
+          "Chile"
+        ],
+        "lang": "lang_not_specified",
+        "rejected_reasons": [],
+        "category_name": "Programming",
+        "perks": [],
+        "min_salary": null,
+        "max_salary": null,
+        "published_at": 1786391259,
+        "response_time_in_days": {
+          "min": 1,
+          "max": 5
+        },
+        "applications_count": 57,
+        "location_regions": {
+          "data": []
+        },
+        "location_tenants": {
+          "data": []
+        },
+        "location_cities": {
+          "data": [
+            {
+              "id": 1,
+              "type": "location_city"
+            }
+          ]
+        },
+        "modality": {
+          "data": {
+            "id": 1,
+            "type": "modality"
+          }
+        },
+        "seniority": {
+          "data": {
+            "id": 4,
+            "type": "seniority"
+          }
+        },
+        "tags": {
+          "data": [
+            {
+              "id": 123,
+              "type": "tag"
+            },
+            {
+              "id": 762,
+              "type": "tag"
+            },
+            {
+              "id": 259,
+              "type": "tag"
+            },
+            {
+              "id": 11,
+              "type": "tag"
+            },
+            {
+              "id": 12,
+              "type": "tag"
+            },
+            {
+              "id": 37448,
+              "type": "tag"
+            },
+            {
+              "id": 298,
+              "type": "tag"
+            },
+            {
+              "id": 162,
+              "type": "tag"
+            },
+            {
+              "id": 1694,
+              "type": "tag"
+            }
+          ]
+        },
+        "company": {
+          "data": {
+            "id": 16478,
+            "type": "company"
+          }
+        }
+      },
+      "links": {
+        "public_url": "https://www.getonbrd.com/jobs/ux-engineer-senior-admoai-santiago-4b10"
+      }
+    },
+    {
+      "id": "senior-full-stack-software-engineer-improving-south-america-remote",
+      "type": "job",
+      "attributes": {
+        "title": "Senior Full-Stack Engineer Strong AWS",
+        "description_headline": "Qualifications:",
+        "description": "<ul><li>Bachelor’s degree in computer science or related field, or equivalent experience.</li><li>5+ years of professional software development experience, including substantial experience in system architecture.</li><li>Proven Experience designing and building scalable, distributed systems.</li><li",
+        "projects": "<p>Responsibilities:</p><ul><li>Develop cutting edge water management solutions in product-based workflows</li><li>Design, develop, and maintain cloud-native backend microservices using AWS, containers, and AWS Lambda.</li><li>Build scalable, high-performance water management solutions for a SaaS pl",
+        "functions_headline": "Responsibilities:",
+        "functions": "<ul><li>Develop cutting edge water management solutions in product-based workflows</li><li>Design and implement complex backend containerized and serverless microservices on AWS while leveraging AWS Lambda.</li><li>Develop testable, readable, and effective production quality code.</li><li>Architect ",
+        "benefits_headline": "Why join Improving?",
+        "benefits": "<ul><li>Comprehensive medical, dental, vision, and life insurance</li><li>Mental health support</li><li>Savings Fund &amp; Corporate Retirement Plan</li><li>Paid time off, vacation bonus, and Christmas bonus</li><li>Career development, certifications, and continuous learning</li><li>TotalPass wellne",
+        "desirable_headline": "",
+        "desirable": "",
+        "remote": true,
+        "remote_modality": "remote_local",
+        "remote_zone": null,
+        "countries": [
+          "Remote"
+        ],
+        "lang": "en",
+        "rejected_reasons": [
+          {
+            "no_requirements": {
+              "title": "Unclear job requirements",
+              "description": "The requirements section is the first section that applicants review so there should be no ambiguity about the skills or experience required for the position. Please detail whether experience in specific projects or industries is required and what types of things the applicant must be able to do. <strong>If your position does not require prior experience or expertise, be sure to state that explicitly as well.</strong>"
+            }
+          }
+        ],
+        "category_name": "Programming",
+        "perks": [
+          "relocation",
+          "pet_friendly",
+          "flexible_hours",
+          "health_coverage",
+          "computer_provided",
+          "informal_dresscode",
+          "vacation_over_legal",
+          "beverages_and_snacks"
+        ],
+        "min_salary": 3000,
+        "max_salary": 3500,
+        "published_at": 1786387912,
+        "response_time_in_days": {
+          "min": null,
+          "max": null
+        },
+        "applications_count": 94,
+        "location_regions": {
+          "data": []
+        },
+        "location_tenants": {
+          "data": [
+            {
+              "id": 7,
+              "type": "location_tenant"
+            }
+          ]
+        },
+        "location_cities": {
+          "data": []
+        },
+        "modality": {
+          "data": {
+            "id": 1,
+            "type": "modality"
+          }
+        },
+        "seniority": {
+          "data": {
+            "id": 4,
+            "type": "seniority"
+          }
+        },
+        "tags": {
+          "data": [
+            {
+              "id": 733,
+              "type": "tag"
+            },
+            {
+              "id": 123,
+              "type": "tag"
+            },
+            {
+              "id": 156,
+              "type": "tag"
+            },
+            {
+              "id": 37640,
+              "type": "tag"
+            },
+            {
+              "id": 175,
+              "type": "tag"
+            },
+            {
+              "id": 74514,
+              "type": "tag"
+            },
+            {
+              "id": 1259,
+              "type": "tag"
+            },
+            {
+              "id": 310,
+              "type": "tag"
+            },
+            {
+              "id": 629,
+              "type": "tag"
+            }
+          ]
+        },
+        "company": {
+          "data": {
+            "id": 4161,
+            "type": "company"
+          }
+        }
+      },
+      "links": {
+        "public_url": "https://www.getonbrd.com/jobs/senior-full-stack-software-engineer-improving-south-america-remote"
+      }
+    }
+  ],
+  "meta": {
+    "page": 1,
+    "per_page": 3,
+    "total_pages": 1
+  }
+}

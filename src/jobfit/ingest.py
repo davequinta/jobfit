@@ -54,8 +54,9 @@ SAMPLE_CHARS = 800
 @dataclass(frozen=True)
 class Feed:
     name: str          # source name stored on the posting
-    kind: str          # remotive_json | rss
+    kind: str          # see PARSERS
     url: str
+    pages: int = 1     # paginated sources fetch url&page=1..pages
     robots_exemption: str = ""  # non-empty = deliberately ignore robots.txt, with a reason
 
 
@@ -253,6 +254,15 @@ def parse_wwr(body: bytes, feed_url: str, source: str) -> ParseResult:
     """
     result = ParseResult()
     feed = feedparser.parse(body)
+    # feedparser is lenient: handed a 502 HTML error page it reports no error
+    # and no entries, which would be logged as an empty feed. `version` is
+    # empty for anything it did not recognise as a feed at all.
+    if not feed.version and not feed.entries:
+        result.issues.append(
+            Issue(source, feed_url, "parse_error", "response is not a feed",
+                  sample_of(body[:SAMPLE_CHARS].decode(errors="replace")))
+        )
+        return result
     if feed.bozo and not feed.entries:
         result.issues.append(
             Issue(source, feed_url, "parse_error",
@@ -321,7 +331,254 @@ def parse_wwr(body: bytes, feed_url: str, source: str) -> ParseResult:
     return result
 
 
-PARSERS = {"remotive_json": parse_remotive, "rss": parse_wwr}
+def parse_getonbrd(body: bytes, feed_url: str, source: str, resolve_company=None) -> ParseResult:
+    """Get on Board — JSON:API, LATAM-focused, with structured salary numbers.
+
+    `company` arrives as a bare relationship id and the API supports no
+    `include`, so names come from an injected resolver that the fetcher backs
+    with a cache. A company that will not resolve drops the posting rather than
+    storing it under an id nobody can read.
+    """
+    result = ParseResult()
+    try:
+        records = json.loads(body)["data"]
+        if not isinstance(records, list):
+            raise TypeError(f"'data' is {type(records).__name__}, expected list")
+    except Exception as exc:
+        result.issues.append(Issue(source, feed_url, "parse_error", f"{type(exc).__name__}: {exc}",
+                                   sample_of(body[:SAMPLE_CHARS].decode(errors="replace"))))
+        return result
+
+    result.fetched = len(records)
+    if not records:
+        result.issues.append(Issue(source, feed_url, "empty_feed", "feed returned zero records"))
+        return result
+
+    for record in records:
+        attributes = record.get("attributes") or {}
+        url = (record.get("links") or {}).get("public_url")
+        missing = _require(attributes, ("title", "published_at"))
+        if missing or not url:
+            result.issues.append(Issue(source, feed_url, "missing_field",
+                                       f"record has no usable '{missing or 'public_url'}'",
+                                       sample_of(record)))
+            continue
+
+        company_id = ((attributes.get("company") or {}).get("data") or {}).get("id")
+        company = resolve_company(company_id) if (resolve_company and company_id) else None
+        if not company:
+            result.issues.append(Issue(source, feed_url, "missing_field",
+                                       f"could not resolve a company name for id {company_id!r}",
+                                       sample_of(record)))
+            continue
+
+        html = "\n".join(
+            str(attributes.get(part) or "")
+            for part in ("description", "functions", "desirable", "projects", "benefits")
+        )
+        low, high = attributes.get("min_salary"), attributes.get("max_salary")
+        salary = f"{low} - {high} USD/month" if low and high else None
+
+        result.postings.append(Posting(
+            dedupe_key=dedupe_key(company, attributes["title"], url),
+            source=source,
+            source_id=str(record.get("id")) if record.get("id") is not None else None,
+            feed_url=feed_url,
+            url=url,
+            canonical_url=canonical_url(url),
+            company=company.strip(),
+            title=attributes["title"].strip(),
+            location_raw=", ".join(attributes.get("countries") or []) or None,
+            category=attributes.get("category_name"),
+            job_type=attributes.get("remote_modality"),
+            tags=[str(p) for p in attributes.get("perks") or []],
+            salary_raw=salary,
+            description_html=html or None,
+            description_text=html_to_text(html),
+            published_at=iso_utc(datetime.fromtimestamp(attributes["published_at"], timezone.utc)),
+            raw_json=json.dumps(record, ensure_ascii=False),
+        ))
+    return result
+
+
+def parse_remoteok(body: bytes, feed_url: str, source: str) -> ParseResult:
+    """Remote OK — a flat JSON array whose first element is a legal notice."""
+    result = ParseResult()
+    try:
+        records = json.loads(body)
+        if not isinstance(records, list):
+            raise TypeError(f"payload is {type(records).__name__}, expected list")
+    except Exception as exc:
+        result.issues.append(Issue(source, feed_url, "parse_error", f"{type(exc).__name__}: {exc}",
+                                   sample_of(body[:SAMPLE_CHARS].decode(errors="replace"))))
+        return result
+
+    # The terms-of-service element has no slug; everything else is a posting.
+    records = [r for r in records if isinstance(r, dict) and "slug" in r]
+    result.fetched = len(records)
+    if not records:
+        result.issues.append(Issue(source, feed_url, "empty_feed", "no postings in the array"))
+        return result
+
+    for record in records:
+        missing = _require(record, ("company", "position", "url", "date"))
+        if missing:
+            result.issues.append(Issue(source, feed_url, "missing_field",
+                                       f"record has no usable '{missing}'", sample_of(record)))
+            continue
+        try:
+            published = iso_utc(datetime.fromisoformat(record["date"]))
+        except ValueError as exc:
+            result.issues.append(Issue(source, feed_url, "missing_field",
+                                       f"unparseable 'date': {exc}", sample_of(record)))
+            continue
+
+        # The API sends 0/0 rather than null when no range is published; storing
+        # "0 - 0" would let the scorer read it as a real and terrible offer.
+        low, high = record.get("salary_min") or 0, record.get("salary_max") or 0
+        salary = f"{low} - {high}" if low and high else None
+
+        html = record.get("description") or ""
+        result.postings.append(Posting(
+            dedupe_key=dedupe_key(record["company"], record["position"], record["url"]),
+            source=source,
+            source_id=str(record.get("id")) if record.get("id") is not None else None,
+            feed_url=feed_url,
+            url=record["url"],
+            canonical_url=canonical_url(record["url"]),
+            company=record["company"].strip(),
+            title=record["position"].strip(),
+            location_raw=record.get("location") or None,
+            category=None,
+            job_type=None,
+            tags=[str(tag) for tag in record.get("tags") or []],
+            salary_raw=salary,
+            description_html=html or None,
+            description_text=html_to_text(html),
+            published_at=published,
+            raw_json=json.dumps(record, ensure_ascii=False),
+        ))
+    return result
+
+
+# HN comments open with "Company | Role | Location | ...". Everything after the
+# first separator is treated as the title: one comment often advertises several
+# roles, and splitting them is guesswork the scorer does better with full text.
+HN_SEPARATORS = re.compile(r"\s*[|]\s*|\s+[-\u2013\u2014]\s+")
+HN_TRAILING_URL = re.compile(r"\(?\s*https?://\S+\s*\)?")
+
+# Plenty of comments open with a sentence instead of pipes — "Sumble is the
+# newco from the founders of Kaggle. We are hiring…". Auditing a real run found
+# 19 of 243 dropped that way, nearly all of them genuine postings, so the name
+# is recovered from the words before the first verb. Dropping a real posting is
+# the expensive error here; a slightly wrong company name is not.
+HN_PROSE_VERB = re.compile(
+    r"\s+(?:is|are|was|were|has|have|builds?|makes?|provides?|helps?|does|"
+    r"powers?|creates?|develops?|runs?|offers?|works?|seeks?|needs?|wants?)\s",
+    re.IGNORECASE,
+)
+HN_MAX_COMPANY_CHARS = 60
+
+# The prose fallback is permissive by design, so it needs a floor: thread
+# chatter ("Is this thread still active?") parses just as cleanly as a job ad.
+# A comment with none of these words is not an advertisement.
+HN_HIRING_SIGNAL = re.compile(
+    r"\b(hiring|we're looking|we are looking|seeking|join us|apply|role|roles|"
+    r"position|engineer|engineering|developer|full[- ]?stack|backend|frontend)\b",
+    re.IGNORECASE,
+)
+
+
+def _hn_from_prose(text: str) -> tuple[str, str]:
+    """Company and role out of a comment that opens with a sentence.
+
+    The verb is searched in the running text rather than in a split sentence:
+    "Open Source Security, Inc. is hiring…" splits at the abbreviation and loses
+    the company's own full stop.
+    """
+    cleaned = " ".join(HN_TRAILING_URL.sub(" ", text).split())
+    if not HN_HIRING_SIGNAL.search(cleaned):
+        return "", ""
+
+    verb = HN_PROSE_VERB.search(cleaned[:HN_MAX_COMPANY_CHARS + 40])
+    if not verb:
+        return "", ""
+    company = cleaned[: verb.start()].strip(" ,-–—:")
+    if not company or len(company) > HN_MAX_COMPANY_CHARS:
+        return "", ""
+    return company, cleaned[:200]
+
+
+def parse_hn(body: bytes, feed_url: str, source: str) -> ParseResult:
+    """Hacker News "Who is hiring" — one top-level comment per posting.
+
+    The messiest source and the highest signal: these are posted by the company
+    itself rather than relayed by a board. A comment that does not follow the
+    pipe convention is almost always thread chatter, so it is reported and
+    dropped instead of being stored with a paragraph as its title.
+    """
+    result = ParseResult()
+    try:
+        story = json.loads(body)
+        children = story["children"]
+        if not isinstance(children, list):
+            raise TypeError(f"'children' is {type(children).__name__}, expected list")
+    except Exception as exc:
+        result.issues.append(Issue(source, feed_url, "parse_error", f"{type(exc).__name__}: {exc}",
+                                   sample_of(body[:SAMPLE_CHARS].decode(errors="replace"))))
+        return result
+
+    comments = [c for c in children if c.get("text")]
+    result.fetched = len(comments)
+    if not comments:
+        result.issues.append(Issue(source, feed_url, "empty_feed", "thread has no comments"))
+        return result
+
+    for comment in comments:
+        text = html_to_text(comment["text"])
+        first_line = text.split(". ")[0]
+        parts = [p for p in HN_SEPARATORS.split(first_line) if p.strip()]
+        company = HN_TRAILING_URL.sub("", parts[0]).strip() if parts else ""
+        title = " | ".join(parts[1:])[:200] if len(parts) > 1 else ""
+
+        if not title:
+            company, title = _hn_from_prose(text)
+
+        if not company or not title:
+            result.issues.append(Issue(source, feed_url, "unparsed_title",
+                                       "comment carries no recognisable company and role",
+                                       sample_of(text)))
+            continue
+        url = f"https://news.ycombinator.com/item?id={comment['id']}"
+        result.postings.append(Posting(
+            dedupe_key=dedupe_key(company, title, url),
+            source=source,
+            source_id=str(comment["id"]),
+            feed_url=feed_url,
+            url=url,
+            canonical_url=canonical_url(url),
+            company=company,
+            title=title,
+            location_raw=None,       # stated in prose; stage 2 and 3 read the body
+            category=None,
+            job_type=None,
+            tags=[],
+            salary_raw=None,
+            description_html=comment["text"],
+            description_text=text,
+            published_at=iso_utc(datetime.fromisoformat(comment["created_at"])),
+            raw_json=json.dumps(comment, ensure_ascii=False),
+        ))
+    return result
+
+
+PARSERS = {
+    "remotive_json": parse_remotive,
+    "rss": parse_wwr,
+    "getonbrd_json": parse_getonbrd,
+    "remoteok_json": parse_remoteok,
+    "hn_hiring": parse_hn,
+}
 
 
 # --- politeness --------------------------------------------------------------
@@ -396,6 +653,72 @@ class PoliteFetcher:
 # --- storage -----------------------------------------------------------------
 
 
+# --- source-specific plumbing ------------------------------------------------
+
+
+def latest_hn_thread(fetcher) -> str:
+    """URL of the most recent "Who is hiring" thread.
+
+    The thread is monthly and its id changes, so it is discovered rather than
+    configured — a hard-coded id silently goes stale after four weeks.
+    """
+    listing = json.loads(fetcher.get(
+        "https://hn.algolia.com/api/v1/search_by_date"
+        "?tags=story,author_whoishiring&hitsPerPage=10"))
+    for hit in listing["hits"]:
+        if "who is hiring" in (hit.get("title") or "").lower():
+            return f"https://hn.algolia.com/api/v1/items/{hit['objectID']}"
+    raise ValueError("no 'Who is hiring' thread found in the last 10 whoishiring stories")
+
+
+def company_resolver(conn: sqlite3.Connection, fetcher, source: str):
+    """Look up Get on Board company names, caching them across runs.
+
+    The API exposes company only as a relationship id and supports no `include`,
+    so a first run costs one request per unique company. Caching means every
+    later run costs almost none.
+    """
+    def resolve(company_id) -> str | None:
+        row = conn.execute(
+            "SELECT name FROM source_companies WHERE source = ? AND source_id = ?",
+            (source, str(company_id)),
+        ).fetchone()
+        if row:
+            return row["name"]
+        try:
+            payload = json.loads(
+                fetcher.get(f"https://www.getonbrd.com/api/v0/companies/{company_id}"))
+            name = payload["data"]["attributes"]["name"]
+        except Exception as exc:
+            log.warning("%s: could not resolve company %s — %s", source, company_id, exc)
+            return None
+        conn.execute(
+            "INSERT OR REPLACE INTO source_companies (source, source_id, name, fetched_at)"
+            " VALUES (?,?,?,?)", (source, str(company_id), name, iso_now()))
+        conn.commit()
+        return name
+
+    return resolve
+
+
+def fetch_feed(fetcher, feed: Feed) -> bytes:
+    """One feed's body. Paginated sources come back as a single merged payload."""
+    if feed.kind == "hn_hiring":
+        return fetcher.get(latest_hn_thread(fetcher))
+    if feed.pages <= 1:
+        return fetcher.get(feed.url)
+
+    separator = "&" if "?" in feed.url else "?"
+    merged: list = []
+    for page in range(1, feed.pages + 1):
+        payload = json.loads(fetcher.get(f"{feed.url}{separator}page={page}"))
+        records = payload["data"] if isinstance(payload, dict) else payload
+        if not records:
+            break
+        merged.extend(records)
+    return json.dumps({"data": merged}).encode()
+
+
 def connect(db_path: str) -> sqlite3.Connection:
     if db_path != ":memory:":
         Path(db_path).parent.mkdir(parents=True, exist_ok=True)
@@ -463,7 +786,16 @@ def record_issues(conn: sqlite3.Connection, run_id: int, issues: list[Issue], no
 # --- the run -----------------------------------------------------------------
 
 
-def ingest(conn: sqlite3.Connection, feeds: list[Feed], fetcher, now: str) -> RunSummary:
+def _parse(feed: Feed, body: bytes, resolve_company) -> ParseResult:
+    """Dispatch to the feed's parser, passing the extras only that parser needs."""
+    parser = PARSERS[feed.kind]
+    if feed.kind == "getonbrd_json":
+        return parser(body, feed.url, feed.name, resolve_company=resolve_company)
+    return parser(body, feed.url, feed.name)
+
+
+def ingest(conn: sqlite3.Connection, feeds: list[Feed], fetcher, now: str,
+           resolve_company=None) -> RunSummary:
     """Fetch every feed, store what parses, and report loudly on what does not.
 
     One broken feed never stops the others, but it does leave the run
@@ -488,7 +820,7 @@ def ingest(conn: sqlite3.Connection, feeds: list[Feed], fetcher, now: str) -> Ru
             continue
 
         try:
-            body = fetcher.get(feed.url)
+            body = fetch_feed(fetcher, feed)
         except Exception as exc:
             log.error("%s: fetch failed for %s — %s: %s", feed.name, feed.url, type(exc).__name__, exc)
             record_issues(conn, run_id,
@@ -496,7 +828,7 @@ def ingest(conn: sqlite3.Connection, feeds: list[Feed], fetcher, now: str) -> Ru
             degraded = True
             continue
 
-        result = PARSERS[feed.kind](body, feed.url, feed.name)
+        result = _parse(feed, body, resolve_company)
         stored = store(conn, result.postings, run_id, now)
         record_issues(conn, run_id, result.issues, now)
 
@@ -575,7 +907,8 @@ def main(argv: list[str] | None = None) -> int:
     )
     conn = connect(args.db or config["db_path"])
     try:
-        summary = ingest(conn, config["feeds"], fetcher, iso_now())
+        summary = ingest(conn, config["feeds"], fetcher, iso_now(),
+                         resolve_company=company_resolver(conn, fetcher, "getonbrd"))
     finally:
         fetcher.close()
         conn.close()

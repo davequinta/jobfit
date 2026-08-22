@@ -43,3 +43,36 @@ feeds:
   - name: weworkremotely
     kind: rss
     url: https://weworkremotely.com/categories/remote-devops-sysadmin-jobs.rss
+
+  # --- Get on Board ---------------------------------------------------------
+  # LATAM-focused, the largest source here (~400 remote programming roles) and
+  # the only one publishing salary as numbers rather than prose.
+  #
+  # Its robots.txt sets Content-Signal "search=yes, ai-train=no, use=reference"
+  # with a general "Allow: /", and blocks named AI crawlers (ClaudeBot, GPTBot,
+  # CCBot) by user-agent. We are not those crawlers, we do not train on the
+  # content, and we attribute. But `ai-input` — feeding text to a model for
+  # inference, which stage 3 does — is not specified either way, and by the
+  # policy's own wording that means neither granted nor restricted.
+  # This is a documented judgement call, not an oversight. Delete the entry to
+  # drop the source; nothing else changes.
+  - name: getonbrd
+    kind: getonbrd_json
+    url: https://www.getonbrd.com/api/v0/categories/programming/jobs?per_page=100&remote=true
+    pages: 4
+
+  # --- Hacker News "Who is hiring" ------------------------------------------
+  # Posted by the companies themselves rather than relayed by a board, which
+  # makes it the highest-signal source and a different `channel` in the tracking
+  # CSV. The monthly thread id is discovered at run time, not configured.
+  # Public Algolia API, no restrictions.
+  - name: hackernews
+    kind: hn_hiring
+    url: auto
+
+  # --- Remote OK ------------------------------------------------------------
+  # Same Content-Signal position as Get on Board, plus terms requiring a link
+  # back and attribution — both satisfied by postings.url and postings.source.
+  - name: remoteok
+    kind: remoteok_json
+    url: https://remoteok.com/api

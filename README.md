@@ -16,8 +16,8 @@ markdown. The defaults are one engineer's and are meant to be replaced.
 
 | Stage | State |
 |---|---|
-| 1 — ingest | **Working.** 211 postings from 2 sources on the first real run. |
-| 2 — prefilter | **Working.** Cuts 211 to 39 on real data. |
+| 1 — ingest | **Working.** 846 postings from 5 sources on real data. |
+| 2 — prefilter | **Working.** Cuts 846 to 135. |
 | 3 — score | **Built, never run.** Prompt, schema, storage and tests are done; it has not yet made a single real API call. |
 | Queue output | **Working.** Writes `queue/YYYY-MM-DD.md` and appends to `out/applications.csv`. |
 | 4 — draft | **Not built.** Queue entries carry no cover-letter opener. |
@@ -218,12 +218,54 @@ Requests are serialized at one per second per host, with a real User-Agent whose
 contact address comes from `JOBFIT_CONTACT` in `.env` so it stays out of the
 repo. `robots.txt` is fetched once per host and honoured.
 
-| Source | Access | robots.txt |
-|---|---|---|
-| Remotive | Public JSON API | Disallows `/api/*` — see below |
-| We Work Remotely | RSS, 5 engineering category feeds | Allowed |
+| Source | Postings | Access | robots.txt |
+|---|---|---|---|
+| Get on Board | 301 | Public JSON:API, 4 pages | `Allow: /`, `ai-train=no` — see below |
+| Hacker News "Who is hiring" | 230 | Public Algolia API | No restrictions |
+| We Work Remotely | 195 | RSS, 5 engineering category feeds | `Allow: /` |
+| Remote OK | 100 | Public JSON API | `Allow: /`, `ai-train=no` — see below |
+| Remotive | 20 | Public JSON API | Disallows `/api/*` — see below |
 
-**The Remotive exception, stated plainly.** `remotive.com/robots.txt` carries
+**Get on Board** is LATAM-focused and the only source publishing salary as
+numbers rather than prose, which feeds the rubric's compensation points
+directly. Its API exposes company only as a relationship id and supports no
+`include`, so names are resolved one request at a time and cached in
+`source_companies` — a first run pays ~115 lookups, later runs pay almost none.
+
+**Hacker News** is the highest-signal source, because the postings are written
+by the companies themselves rather than relayed by a board — a different
+`channel` in the tracking CSV, and a better one. It is also the messiest:
+freeform comments with a loose `Company | Role | Location` convention. The
+monthly thread id is discovered at run time rather than configured, because a
+hard-coded id goes stale after four weeks.
+
+Auditing the first HN run found 19 of 243 comments dropped as "not a posting",
+and nearly all of them were real jobs that simply open with a sentence —
+"Sumble is the newco from the founders of Kaggle. We are hiring…". The parser
+now recovers the company from the words before the first verb, gated on the
+comment containing a hiring signal at all, because thread chatter parses just as
+cleanly as a job ad. That took the drop rate from 7.8% to 5.3%, and what remains
+is mostly `[flagged]`.
+
+**LinkedIn is deliberately absent.** Scraping it is against their terms for
+profile data, they detect and block it, and what you risk is the professional
+account you are using to find work.
+
+**Two documented judgement calls.** Both are recorded in
+[config.yaml](config.yaml) next to the feed they affect, and both are one
+deleted entry away from going away.
+
+*Get on Board and Remote OK* set `Content-Signal: search=yes, ai-train=no,
+use=reference` with a general `Allow: /`, and block named AI crawlers
+(ClaudeBot, GPTBot, CCBot) by user-agent. This tool is none of those crawlers,
+it does not train on the content, and it attributes. But `ai-input` — feeding
+text to a model for inference, which stage 3 does — is not specified either
+way, and by the policy's own wording that means neither granted nor restricted.
+Reading it as permitted for a single user's personal tool at one request per
+second is a judgement, not a certainty, and it is written down rather than
+buried.
+
+*The Remotive exception, stated plainly.* `remotive.com/robots.txt` carries
 `Disallow: /api/*` for all user agents, while the API response itself carries a
 legal notice granting developers access on condition that listings link back to
 the Remotive URL and credit Remotive as the source. The `Disallow` is aimed at

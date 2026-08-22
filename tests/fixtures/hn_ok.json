@@ -1,0 +1,63 @@
+{
+  "id": 49156683,
+  "title": "Ask HN: Who is hiring? (August 2026)",
+  "created_at": "2026-08-03T15:00:54.000Z",
+  "children": [
+    {
+      "author": "kcartmell",
+      "created_at": "2026-08-03T15:00:59.000Z",
+      "created_at_i": 1785769259,
+      "id": 49156689,
+      "options": [],
+      "parent_id": 49156683,
+      "points": null,
+      "story_id": 49156683,
+      "text": "Snout <a href=\"https:&#x2F;&#x2F;snout.com&#x2F;\" rel=\"nofollow\">https:&#x2F;&#x2F;snout.com&#x2F;</a> | Multiple Engineering + Product Roles | Remote US or Ontario, Canada | Full Time<p>Join us at Snout on our mission to ensure no one ever has to make a health decision for their pet based on the cash in their bank account. Snout plans pay for 100% of routine veterinary care, unlimited visits, and",
+      "title": null,
+      "type": "comment",
+      "url": null
+    },
+    {
+      "author": "norejisace",
+      "created_at": "2026-08-03T15:01:43.000Z",
+      "created_at_i": 1785769303,
+      "id": 49156702,
+      "options": [],
+      "parent_id": 49156683,
+      "points": null,
+      "story_id": 49156683,
+      "text": "Flywheel Motion (<a href=\"https:&#x2F;&#x2F;flywheelmotion.com&#x2F;?utm_source=hackernews\" rel=\"nofollow\">https:&#x2F;&#x2F;flywheelmotion.com&#x2F;?utm_source=hackernews</a>) | REMOTE (worldwide) | Contract<p>We build authority infrastructure for people whose expertise has outgrown their digital presence — founders, scientists, operators. Positioning and narrative first, then the sites, content ",
+      "title": null,
+      "type": "comment",
+      "url": null
+    },
+    {
+      "author": "eterps",
+      "created_at": "2026-08-03T15:02:19.000Z",
+      "created_at_i": 1785769339,
+      "id": 49156711,
+      "options": [],
+      "parent_id": 49156683,
+      "points": null,
+      "story_id": 49156683,
+      "text": "Open Education Applications &#x2F; Neon | Senior&#x2F;Lead Platform &amp; DevOps Engineer, Senior Frontend Engineer, Senior Full-Stack Engineer | Utrecht, The Netherlands | HYBRID<p>We are a non-profit working to make teaching materials for schools better, more affordable, and more flexible, in both digital and print formats.<p>Working hours and office cadence are flexible and agreed based on the ",
+      "title": null,
+      "type": "comment",
+      "url": null
+    },
+    {
+      "author": "james_impliu",
+      "created_at": "2026-08-03T15:02:40.000Z",
+      "created_at_i": 1785769360,
+      "id": 49156716,
+      "options": [],
+      "parent_id": 49156683,
+      "points": null,
+      "story_id": 49156683,
+      "text": "PostHog | Full-Time | Technical CSMs, Technical AEs, AI Research Engineer | REMOTE (all remote) | Hiring GMT-8 to GMT+2 | PostHog makes your product self-driving.<p>* we have a public handbook (posthog.com&#x2F;handbook) if you want to learn how we work, pay and more in complete detail.<p>* we are growing through more autonomy and transparency not through process.<p>* we have a ton of scale and a ",
+      "title": null,
+      "type": "comment",
+      "url": null
+    }
+  ]
+}

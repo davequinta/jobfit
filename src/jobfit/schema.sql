@@ -115,3 +115,13 @@ CREATE TABLE IF NOT EXISTS scores (
 );
 
 CREATE INDEX IF NOT EXISTS idx_scores_fit ON scores(fit_score);
+
+-- Names for sources that expose companies only as an opaque id (Get on Board).
+-- Cached across runs so a first ingest pays the lookups once.
+CREATE TABLE IF NOT EXISTS source_companies (
+    source     TEXT NOT NULL,
+    source_id  TEXT NOT NULL,
+    name       TEXT NOT NULL,
+    fetched_at TEXT NOT NULL,
+    PRIMARY KEY (source, source_id)
+);
