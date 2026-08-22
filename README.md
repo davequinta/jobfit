@@ -66,7 +66,7 @@ Then fill in three things:
 
 ```bash
 jobfit cv ~/Documents/my-cv.pdf   # converts your existing CV into profile/cv.md
-jobfit ingest               # stage 1 — free, writes data/jobfit.db
+jobfit ingest               # stage 1 — free, writes data/jobfit.db (~3 min first run)
 jobfit prefilter            # stage 2 — free, writes verdicts
 jobfit score --limit 5      # stage 3 — costs money, start small
 jobfit queue                # writes queue/YYYY-MM-DD.md — this is what you read
@@ -75,6 +75,10 @@ jobfit queue                # writes queue/YYYY-MM-DD.md — this is what you re
 Open `queue/YYYY-MM-DD.md`. That is the product.
 
 Stages 1 and 2 cost nothing and need no API key. Only `score` calls the API.
+
+The first `ingest` takes about three minutes: requests are serialised at one per
+second per host, and Get on Board needs a name lookup for every company it has
+not seen before. Those are cached, so later runs take well under a minute.
 
 **Your Claude Code or Claude.ai subscription does not include API credits** —
 they are separate accounts. Get a key at
@@ -294,13 +298,13 @@ same corpus after every rule change without re-ingesting.
 On the first real corpus:
 
 ```
-  211  postings evaluated
-  -98  stale
-  -52  title_excluded
-  -17  no_stack_overlap
-   -3  junior
-   -2  location_ineligible
-   39  survive  (82% cut)
+  846  postings evaluated
+ -516  stale
+ -112  no_stack_overlap
+  -74  title_excluded
+   -6  junior
+   -3  location_ineligible
+  135  survive  (84% cut)
 ```
 
 Rules run cheapest-to-verify first, and the first one that fires is the one
@@ -309,13 +313,15 @@ effort to confirm by eye. The run exits non-zero if the cut falls outside 50–8
 below that the funnel is not paying for itself, above it the filter is probably
 eating good postings.
 
-`stale` dominating is an artifact of the first run. RSS category feeds carry
-months of backlog, so the first ingest pulls a lot of history; later runs see
-far fewer stale postings and the mix shifts.
+`stale` dominating is partly an artifact of a first run — RSS category feeds
+carry months of backlog — and partly a real mismatch worth knowing about. The
+Hacker News thread is monthly, so by the end of the month most of its postings
+are older than 14 days even though they are still live. `max_age_days` is a
+single global setting; making it per-source would recover much of that.
 
 ### Two matching rules, both learned from the data
 
-**Word boundaries, never substrings.** `LIKE '%Go%'` claims 173 of 211 postings
+**Word boundaries, never substrings.** `LIKE '%Go%'` claimed 173 of the first 211 postings
 require Go, because "going" and "Google" exist. Every phrase match is anchored.
 
 **Some signals only count in titles.** "You will mentor junior engineers" is a
@@ -392,8 +398,9 @@ downgraded to `low` and the event is logged.
 
 ### What a run costs
 
-Measured against 39 surviving postings with an average description of ~1,040
-tokens and a ~2,900-token cached prefix:
+Measured against 39 postings with an average description of ~1,040 tokens and a
+~2,900-token cached prefix. The corpus has since grown to 135 survivors, so
+multiply accordingly — roughly $2 a run at this size, or $1 with the Batch API:
 
 **Measured**, scoring 39 real postings on Sonnet 5:
 
@@ -473,7 +480,7 @@ SELECT (SELECT count(*) FROM postings) AS ingested,
        (SELECT count(*) FROM prefilter_verdicts WHERE rejected_reason IS NULL) AS survived,
        (SELECT count(*) FROM scores) AS scored,
        (SELECT count(*) FROM scores WHERE fit_score >= 70) AS queued;
--- 211 | 39 | 39 | 16
+-- 846 | 135 | 39 | 2
 
 -- Why a posting was thrown away, with the exact phrase that did it
 SELECT p.title, v.rejected_reason, v.detail
@@ -526,7 +533,7 @@ old and new scores never silently mix.
 
 ```bash
 pip install -e . && pip install pytest
-pytest                       # 93 tests, no network, no API calls, no tokens
+pytest                       # 153 tests, no network, no API calls, no tokens
 ```
 
 Every test runs offline. The feed parsers are pure functions over recorded
