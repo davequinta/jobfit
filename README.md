@@ -92,6 +92,41 @@ Every stage exits non-zero when something is wrong — a feed changed shape, the
 filter fell outside its expected band — so a failure reaches you through cron's
 mail rather than sitting silently in the database.
 
+<<<<<<< HEAD
+=======
+## Project layout
+
+The repository holds code and templates. **Everything personal is created on
+your machine by `jobfit init` and never committed** — which is why you will not
+find a `profile/` directory when you browse this repo.
+
+```
+In the repository                      Created by you, gitignored
+─────────────────────────────────      ──────────────────────────────────
+src/jobfit/                            config.yaml        ← jobfit init
+  ingest.py  prefilter.py              profile/
+  score.py   queue.py                    stack.yaml       ← jobfit init
+  cli.py     schema.sql                  cv.md            ← jobfit init
+  templates/                           prompts/
+    config.yaml  stack.yaml               score_system.md ← jobfit init
+    cv.md        env                    .env               ← jobfit init
+    score_system.md
+tests/                                 data/jobfit.db     ← jobfit ingest
+.env.example                           queue/2026-08-22.md ← jobfit queue
+SPEC.md  CLAUDE.md  README.md          out/applications.csv ← jobfit queue
+```
+
+`src/jobfit/templates/` is where the blank versions live. `jobfit init` copies
+them into your working directory, and from then on they are yours to edit — it
+never overwrites a file that already exists.
+
+The scoring rubric is the one exception worth knowing about:
+`src/jobfit/templates/score_system.md` is the canonical copy and is versioned
+here so prompt changes show up in a diff. `jobfit init` copies it to
+`prompts/score_system.md` for you to tune. If you have not run `init`, `jobfit
+score` falls back to the bundled copy and logs which one it used.
+
+>>>>>>> 844dd39 (Stages 1-3 plus queue output)
 ## Stage 1 — ingest
 
 ```bash

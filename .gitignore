@@ -4,6 +4,12 @@ profile/*
 !profile/*.example.md
 queue/
 out/
+<<<<<<< HEAD
+=======
+# The canonical rubric is src/jobfit/templates/score_system.md; a local
+# prompts/ copy from `jobfit init` would be a second copy that drifts.
+prompts/
+>>>>>>> 844dd39 (Stages 1-3 plus queue output)
 
 # Data
 *.db
