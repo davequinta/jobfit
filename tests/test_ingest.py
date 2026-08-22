@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pytest
 
-from jobfit import ingest
+from jobfit import db, http, ingest, sources
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -43,7 +43,7 @@ class FixtureFetcher:
 
 @pytest.fixture
 def conn():
-    connection = ingest.connect(":memory:")
+    connection = db.connect(":memory:")
     yield connection
     connection.close()
 
@@ -52,11 +52,11 @@ def conn():
 
 
 def test_dedupe_key_ignores_cosmetic_differences_in_company_and_url():
-    a = ingest.dedupe_key(
+    a = sources.dedupe_key(
         "  Acme,  Inc. ", "Senior Backend Engineer",
         "https://Example.com/jobs/123/?utm_source=rss&ref=x",
     )
-    b = ingest.dedupe_key(
+    b = sources.dedupe_key(
         "acme inc", "senior backend engineer",
         "https://example.com/jobs/123",
     )
@@ -64,8 +64,8 @@ def test_dedupe_key_ignores_cosmetic_differences_in_company_and_url():
 
 
 def test_dedupe_key_separates_different_roles_at_the_same_company():
-    a = ingest.dedupe_key("Acme", "Senior Backend Engineer", "https://example.com/a")
-    b = ingest.dedupe_key("Acme", "Staff Backend Engineer", "https://example.com/b")
+    a = sources.dedupe_key("Acme", "Senior Backend Engineer", "https://example.com/a")
+    b = sources.dedupe_key("Acme", "Staff Backend Engineer", "https://example.com/b")
     assert a != b
 
 
@@ -73,7 +73,7 @@ def test_dedupe_key_separates_different_roles_at_the_same_company():
 
 
 def test_parse_remotive_normalizes_a_real_record():
-    result = ingest.parse_remotive(fixture("remotive_ok.json"), REMOTIVE_URL, "remotive")
+    result = sources.parse_remotive(fixture("remotive_ok.json"), REMOTIVE_URL, "remotive")
 
     assert result.issues == []
     assert len(result.postings) == 3
@@ -96,7 +96,7 @@ def test_parse_remotive_normalizes_a_real_record():
 
 
 def test_parse_remotive_drops_a_record_missing_a_required_field_and_says_so():
-    result = ingest.parse_remotive(
+    result = sources.parse_remotive(
         fixture("remotive_drift.json"), REMOTIVE_URL, "remotive"
     )
 
@@ -110,14 +110,14 @@ def test_parse_remotive_drops_a_record_missing_a_required_field_and_says_so():
 
 def test_parse_remotive_reports_an_empty_feed_rather_than_returning_nothing():
     body = json.dumps({"job-count": 0, "jobs": []}).encode()
-    result = ingest.parse_remotive(body, REMOTIVE_URL, "remotive")
+    result = sources.parse_remotive(body, REMOTIVE_URL, "remotive")
 
     assert result.postings == []
     assert [i.kind for i in result.issues] == ["empty_feed"]
 
 
 def test_parse_remotive_reports_unparseable_json_as_a_parse_error():
-    result = ingest.parse_remotive(b"<html>502 Bad Gateway</html>", REMOTIVE_URL, "remotive")
+    result = sources.parse_remotive(b"<html>502 Bad Gateway</html>", REMOTIVE_URL, "remotive")
 
     assert result.postings == []
     assert [i.kind for i in result.issues] == ["parse_error"]
@@ -127,7 +127,7 @@ def test_parse_remotive_reports_unparseable_json_as_a_parse_error():
 
 
 def test_parse_wwr_splits_the_company_out_of_the_title():
-    result = ingest.parse_wwr(fixture("wwr_ok.rss"), WWR_URL, "weworkremotely")
+    result = sources.parse_wwr(fixture("wwr_ok.rss"), WWR_URL, "weworkremotely")
 
     assert result.issues == []
     assert len(result.postings) == 3
@@ -147,7 +147,7 @@ def test_parse_wwr_splits_the_company_out_of_the_title():
 
 
 def test_parse_wwr_drops_items_that_break_the_company_title_convention():
-    result = ingest.parse_wwr(fixture("wwr_drift.rss"), WWR_URL, "weworkremotely")
+    result = sources.parse_wwr(fixture("wwr_drift.rss"), WWR_URL, "weworkremotely")
 
     assert len(result.postings) == 1
     kinds = sorted(i.kind for i in result.issues)
@@ -159,7 +159,7 @@ def test_parse_wwr_drops_items_that_break_the_company_title_convention():
 
 def test_store_inserts_postings_and_assigns_them_to_the_run(conn):
     run_id = ingest.start_run(conn, NOW)
-    postings = ingest.parse_wwr(fixture("wwr_ok.rss"), WWR_URL, "weworkremotely").postings
+    postings = sources.parse_wwr(fixture("wwr_ok.rss"), WWR_URL, "weworkremotely").postings
 
     result = ingest.store(conn, postings, run_id, NOW)
 
@@ -170,7 +170,7 @@ def test_store_inserts_postings_and_assigns_them_to_the_run(conn):
 
 
 def test_store_skips_postings_seen_in_an_earlier_run(conn):
-    postings = ingest.parse_wwr(fixture("wwr_ok.rss"), WWR_URL, "weworkremotely").postings
+    postings = sources.parse_wwr(fixture("wwr_ok.rss"), WWR_URL, "weworkremotely").postings
     first = ingest.start_run(conn, "2026-08-20T12:00:00+00:00")
     ingest.store(conn, postings, first, "2026-08-20T12:00:00+00:00")
 
@@ -257,17 +257,17 @@ def test_ingest_records_the_run_row(conn):
 
 def test_robots_blocks_a_disallowed_path():
     robots = "User-agent: *\nDisallow: /api/*\n"
-    assert not ingest.robots_allows(robots, "https://example.com/api/jobs", "jobfit/0.1")
-    assert ingest.robots_allows(robots, "https://example.com/jobs.rss", "jobfit/0.1")
+    assert not http.robots_allows(robots, "https://example.com/api/jobs", "jobfit/0.1")
+    assert http.robots_allows(robots, "https://example.com/jobs.rss", "jobfit/0.1")
 
 
 def test_robots_allows_everything_when_the_file_is_missing():
-    assert ingest.robots_allows(None, "https://example.com/anything", "jobfit/0.1")
+    assert http.robots_allows(None, "https://example.com/anything", "jobfit/0.1")
 
 
 def test_rate_limiter_waits_between_requests_to_the_same_host():
     clock = _FakeClock()
-    limiter = ingest.RateLimiter(min_interval=1.0, monotonic=clock.now, sleep=clock.sleep)
+    limiter = http.RateLimiter(min_interval=1.0, monotonic=clock.now, sleep=clock.sleep)
 
     limiter.wait("example.com")
     limiter.wait("example.com")
@@ -277,7 +277,7 @@ def test_rate_limiter_waits_between_requests_to_the_same_host():
 
 def test_rate_limiter_does_not_delay_a_different_host():
     clock = _FakeClock()
-    limiter = ingest.RateLimiter(min_interval=1.0, monotonic=clock.now, sleep=clock.sleep)
+    limiter = http.RateLimiter(min_interval=1.0, monotonic=clock.now, sleep=clock.sleep)
 
     limiter.wait("example.com")
     limiter.wait("other.com")

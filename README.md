@@ -119,20 +119,24 @@ your machine by `jobfit init` and never committed** — which is why you will no
 find a `profile/` directory when you browse this repo.
 
 ```
-In the repository                      Created by you, gitignored
-─────────────────────────────────      ──────────────────────────────────
-src/jobfit/                            config.yaml        ← jobfit init
-  ingest.py  prefilter.py              profile/
-  score.py   queue.py                    stack.yaml       ← jobfit init
-  cli.py     schema.sql                  cv.md            ← jobfit init
-  templates/                           prompts/
-    config.yaml  stack.yaml               score_system.md ← jobfit init
-    cv.md        env                    .env               ← jobfit init
-    score_system.md
-tests/                                 data/jobfit.db     ← jobfit ingest
-.env.example                           queue/2026-08-22.md ← jobfit queue
-SPEC.md  CLAUDE.md  README.md          out/applications.csv ← jobfit queue
+src/jobfit/
+  One stage per file          ingest.py  prefilter.py  score.py  queue.py
+  Shared, not a stage         sources.py  http.py  db.py  runtime.py
+  Entry points                cli.py  cvimport.py  evals.py
+  Data                        schema.sql  templates/
+
+Created by you, gitignored
+  config.yaml   profile/stack.yaml   profile/cv.md          ← jobfit init
+  prompts/score_system.md   .env                            ← jobfit init
+  data/jobfit.db                                            ← jobfit ingest
+  queue/2026-08-22.md   out/applications.csv                ← jobfit queue
 ```
+
+Four files exist so that no stage has to import another one to borrow a
+function: `sources.py` holds every feed parser behind one contract, `http.py`
+the rate limiter and robots evaluator, `db.py` the connection, and `runtime.py`
+the argument and logging boilerplate the stage commands share. Before that split
+the scoring stage imported the ingest stage purely to open a database.
 
 `src/jobfit/templates/` is where the blank versions live. `jobfit init` copies
 them into your working directory, and from then on they are yours to edit — it

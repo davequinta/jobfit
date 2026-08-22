@@ -18,17 +18,16 @@ always safe.
 
 from __future__ import annotations
 
-import argparse
 import csv
 import json
 import logging
 import sqlite3
-import sys
 from pathlib import Path
 
-import yaml
 
-from jobfit import ingest
+from jobfit import db, runtime
+
+from jobfit import runtime
 
 log = logging.getLogger("jobfit.queue")
 
@@ -179,19 +178,14 @@ def _csv_row(entry: dict, day: str) -> dict:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Write the review queue and tracking CSV.")
-    parser.add_argument("--config", default="config.yaml")
-    parser.add_argument("--db", help="override db_path from the config")
+    parser = runtime.stage_parser("Write the review queue and tracking CSV.")
     parser.add_argument("--threshold", type=int, default=DEFAULT_THRESHOLD)
     parser.add_argument("--day", help="date stamp for the queue file (default: today, UTC)")
     args = parser.parse_args(argv)
 
-    logging.basicConfig(
-        level=logging.INFO, format="%(asctime)s %(levelname)-7s %(message)s", stream=sys.stderr
-    )
-    config = yaml.safe_load(Path(args.config).read_text())
-    day = args.day or ingest.iso_now()[:10]
-    conn = ingest.connect(args.db or config["db_path"])
+    runtime.configure_logging()
+    day = args.day or db.iso_now()[:10]
+    conn = runtime.open_db(args)
     try:
         path = write_queue(conn, args.threshold, day)
         added = append_csv(conn, args.threshold, day)

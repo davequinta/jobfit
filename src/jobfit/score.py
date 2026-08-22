@@ -24,7 +24,6 @@ without touching the rubric or the storage.
 
 from __future__ import annotations
 
-import argparse
 import hashlib
 import json
 import logging
@@ -37,7 +36,9 @@ from typing import Literal
 import yaml
 from pydantic import BaseModel, Field
 
-from jobfit import ingest
+from jobfit import db, runtime
+
+from jobfit import runtime
 
 log = logging.getLogger("jobfit.score")
 
@@ -295,18 +296,14 @@ def load_rubric(instructions_path: str, cv_path: str, stack_path: str) -> Rubric
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Stage 3 — score postings that survived stage 2.")
-    parser.add_argument("--config", default="config.yaml")
+    parser = runtime.stage_parser("Stage 3 — score postings that survived stage 2.")
     parser.add_argument("--profile", default="profile/stack.yaml")
     parser.add_argument("--cv", default="profile/cv.md")
     parser.add_argument("--rubric", help="defaults to prompts/score_system.md, else the bundled rubric")
-    parser.add_argument("--db", help="override db_path from the config")
     parser.add_argument("--limit", type=int, help="score at most N postings (development)")
     args = parser.parse_args(argv)
 
-    logging.basicConfig(
-        level=logging.INFO, format="%(asctime)s %(levelname)-7s %(message)s", stream=sys.stderr
-    )
+    runtime.configure_logging()
     rubric_path = resolve_rubric_path(args.rubric)
     problems = require_files({
         args.config: "run `jobfit init` to create it",
@@ -321,11 +318,10 @@ def main(argv: list[str] | None = None) -> int:
 
     import anthropic
 
-    config = yaml.safe_load(Path(args.config).read_text())
     log.info("rubric %s", rubric_path)
     rubric = load_rubric(rubric_path, args.cv, args.profile)
     client = anthropic.Anthropic()
-    conn = ingest.connect(args.db or config["db_path"])
+    conn = runtime.open_db(args)
 
     pending = conn.execute(
         """SELECT p.* FROM postings p
@@ -342,7 +338,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         for posting in pending:
             result = score_posting(client, rubric, posting)
-            store_score(conn, posting["id"], result, ingest.iso_now())
+            store_score(conn, posting["id"], result, db.iso_now())
             scored += 1
             log.info("%3d  %-24.24s %s", result.score.fit_score,
                      posting["company"], posting["title"][:44])

@@ -23,6 +23,8 @@ import sys
 from datetime import date
 from pathlib import Path
 
+from jobfit import runtime
+
 log = logging.getLogger("jobfit.cv")
 
 CV_PATH = Path("profile/cv.md")
@@ -145,9 +147,7 @@ def main(argv: list[str] | None = None, client=None) -> int:
     parser.add_argument("--force", action="store_true", help="overwrite an existing profile/cv.md")
     args = parser.parse_args(argv)
 
-    logging.basicConfig(
-        level=logging.INFO, format="%(asctime)s %(levelname)-7s %(message)s", stream=sys.stderr
-    )
+    runtime.configure_logging()
 
     source = Path(args.source)
     if not source.is_file():

@@ -15,7 +15,7 @@ from pathlib import Path
 
 import pytest
 
-from jobfit import ingest, score
+from jobfit import db, ingest, score
 
 RUBRIC = score.Rubric(
     instructions="# Job posting scorer\n\nScore the posting against the profile.\n",
@@ -84,7 +84,7 @@ class FakeClient:
 
 @pytest.fixture
 def conn():
-    connection = ingest.connect(":memory:")
+    connection = db.connect(":memory:")
     yield connection
     connection.close()
 

@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-from jobfit import ingest, prefilter
+from jobfit import db, ingest, prefilter, sources
 
 PROFILE = prefilter.Profile(
     stack={
@@ -42,7 +42,7 @@ def posting(**overrides) -> dict:
 
 @pytest.fixture
 def conn():
-    connection = ingest.connect(":memory:")
+    connection = db.connect(":memory:")
     yield connection
     connection.close()
 
@@ -245,7 +245,7 @@ def test_the_first_matching_rule_wins_so_the_reason_is_the_cheapest_one():
 
 def test_run_writes_a_verdict_for_every_posting(conn):
     run_id = ingest.start_run(conn, NOW)
-    stored = ingest.parse_wwr(
+    stored = sources.parse_wwr(
         (Path(__file__).parent / "fixtures" / "wwr_ok.rss").read_bytes(),
         "https://weworkremotely.com/categories/remote-programming-jobs.rss",
         "weworkremotely",
@@ -291,7 +291,7 @@ def test_run_reports_the_funnel_by_reason(conn):
     assert summary.by_reason == {"title_excluded": 1, "junior": 1}
 
 
-def _fake_posting(key: str = "x", **overrides) -> ingest.Posting:
+def _fake_posting(key: str = "x", **overrides) -> sources.Posting:
     fields = {
         "dedupe_key": key,
         "source": "test",
@@ -311,7 +311,7 @@ def _fake_posting(key: str = "x", **overrides) -> ingest.Posting:
         "published_at": "2026-08-20T09:00:00+00:00",
         "raw_json": "{}",
     }
-    return ingest.Posting(**{**fields, **overrides})
+    return sources.Posting(**{**fields, **overrides})
 
 
 # --- the "manager without engineer" rule -------------------------------------

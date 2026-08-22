@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-from jobfit import ingest, queue, score
+from jobfit import db, ingest, queue, score
 
 NOW = "2026-08-22T09:00:00+00:00"
 
@@ -28,7 +28,7 @@ SCORED = [
 @pytest.fixture
 def conn(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
-    connection = ingest.connect(":memory:")
+    connection = db.connect(":memory:")
     run_id = ingest.start_run(connection, NOW)
     for index, (company, title, fit, why_fit, why_not, flags) in enumerate(SCORED, start=1):
         connection.execute(
@@ -173,7 +173,7 @@ def _csv_rows() -> list[dict]:
 
 
 def test_main_writes_both_artifacts_and_reports_them(conn, capsys, monkeypatch):
-    monkeypatch.setattr(queue.ingest, "connect", lambda _: conn)
+    monkeypatch.setattr(queue.db, "connect", lambda _: conn)
     Path("config.yaml").write_text("db_path: data/x.db\n")
 
     exit_code = queue.main(["--day", "2026-08-22"])
@@ -186,7 +186,7 @@ def test_main_writes_both_artifacts_and_reports_them(conn, capsys, monkeypatch):
 
 
 def test_main_is_explicit_when_nothing_cleared_the_bar(conn, capsys, monkeypatch):
-    monkeypatch.setattr(queue.ingest, "connect", lambda _: conn)
+    monkeypatch.setattr(queue.db, "connect", lambda _: conn)
     Path("config.yaml").write_text("db_path: data/x.db\n")
 
     queue.main(["--day", "2026-08-22", "--threshold", "99"])

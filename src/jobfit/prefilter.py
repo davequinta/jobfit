@@ -19,18 +19,20 @@ Two matching rules, both learned from real feed data:
 
 from __future__ import annotations
 
-import argparse
 import json
 import logging
 import re
 import sqlite3
-import sys
 from dataclasses import dataclass, field
 from datetime import datetime
 from functools import lru_cache
 from pathlib import Path
 
 import yaml
+
+from jobfit import db, runtime
+
+from jobfit import runtime
 
 log = logging.getLogger("jobfit.prefilter")
 
@@ -231,22 +233,15 @@ def report(summary: RunSummary) -> str:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Stage 2 — prefilter stored postings.")
-    parser.add_argument("--config", default="config.yaml")
+    parser = runtime.stage_parser("Stage 2 — prefilter stored postings.")
     parser.add_argument("--profile", default="profile/stack.yaml")
-    parser.add_argument("--db", help="override db_path from the config")
     args = parser.parse_args(argv)
 
-    logging.basicConfig(
-        level=logging.INFO, format="%(asctime)s %(levelname)-7s %(message)s", stream=sys.stderr
-    )
-    from jobfit import ingest  # shared connect(); never calls the ingest stage itself
-
-    config = yaml.safe_load(Path(args.config).read_text())
+    runtime.configure_logging()
     profile = load_profile(args.profile)
-    conn = ingest.connect(args.db or config["db_path"])
+    conn = runtime.open_db(args)
     try:
-        summary = run(conn, profile, ingest.iso_now())
+        summary = run(conn, profile, db.iso_now())
     finally:
         conn.close()
 

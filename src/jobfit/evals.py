@@ -24,16 +24,14 @@ wasted application; a false negative costs one posting out of hundreds.
 
 from __future__ import annotations
 
-import argparse
 import json
 import math
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
-import yaml
 
-from jobfit import ingest, score as score_stage
+from jobfit import db, runtime
 
 LABELS = {"apply", "skip", "borderline"}
 
@@ -254,16 +252,12 @@ RESULTS_PATH = Path("evals/results.md")
 
 
 def _open_db(args):
-    config = yaml.safe_load(Path(args.config).read_text())
-    return ingest.connect(args.db or config["db_path"])
+    return runtime.open_db(args)
 
 
 def label_main(argv: list[str] | None = None) -> int:
     """Emit JSONL skeleton lines for postings that still need a hand label."""
-    parser = argparse.ArgumentParser(
-        description="Append unlabelled postings to the eval set for hand labelling.")
-    parser.add_argument("--config", default="config.yaml")
-    parser.add_argument("--db")
+    parser = runtime.stage_parser("Append unlabelled postings to the eval set for hand labelling.")
     parser.add_argument("--out", default=str(LABELS_PATH))
     parser.add_argument("--limit", type=int, default=40)
     parser.add_argument("--rewrite", action="store_true",
@@ -308,10 +302,7 @@ def label_main(argv: list[str] | None = None) -> int:
 
 def eval_main(argv: list[str] | None = None) -> int:
     """Score the hand-labelled set against stored scores. Never calls the API."""
-    parser = argparse.ArgumentParser(
-        description="Measure the scorer against hand labels. Offline; uses stored scores.")
-    parser.add_argument("--config", default="config.yaml")
-    parser.add_argument("--db")
+    parser = runtime.stage_parser("Measure the scorer against hand labels. Offline; uses stored scores.")
     parser.add_argument("--labels", default=str(LABELS_PATH))
     parser.add_argument("--threshold", type=int, default=70)
     parser.add_argument("--note", help="what changed since the last run; logs a row to results.md")
@@ -352,7 +343,7 @@ def eval_main(argv: list[str] | None = None) -> int:
         RESULTS_PATH.parent.mkdir(parents=True, exist_ok=True)
         if not RESULTS_PATH.is_file():
             RESULTS_PATH.write_text(RESULTS_HEADER)
-        entry = results_entry(outcome, args.threshold, ingest.iso_now()[:10],
+        entry = results_entry(outcome, args.threshold, db.iso_now()[:10],
                               versions[0] if versions else "unknown", args.note)
         with RESULTS_PATH.open("a") as handle:
             handle.write(entry + "\n")

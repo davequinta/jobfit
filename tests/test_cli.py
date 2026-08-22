@@ -102,3 +102,18 @@ def test_the_committed_env_example_matches_the_bundled_template():
     bundled = (repo_root / "src" / "jobfit" / "templates" / "env").read_text()
 
     assert committed == bundled
+
+
+@pytest.mark.parametrize("command", ["ingest", "prefilter", "score", "queue", "label", "eval"])
+def test_every_stage_builds_its_argument_parser(command, capsys):
+    """Caught by a smoke test, not by these: `prefilter` declared `--db` on top
+    of the shared parser and died with a duplicate-option error the moment it
+    ran. 153 unit tests passed while the command was broken, because none of
+    them built the parser."""
+    from jobfit import cli
+
+    with pytest.raises(SystemExit) as exit_info:
+        cli.COMMANDS[command](["--help"])
+
+    assert exit_info.value.code == 0
+    assert "--config" in capsys.readouterr().out
