@@ -127,7 +127,7 @@ def write_queue(conn: sqlite3.Connection, threshold: int, day: str) -> Path:
 
 
 def existing_urls(path: Path) -> set[str]:
-    """URLs already recorded, so a nightly re-run does not duplicate them."""
+    """URLs already recorded, so re-running does not duplicate them."""
     if not path.is_file():
         return set()
     with path.open(newline="") as handle:

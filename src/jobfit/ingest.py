@@ -467,7 +467,7 @@ def ingest(conn: sqlite3.Connection, feeds: list[Feed], fetcher, now: str) -> Ru
     """Fetch every feed, store what parses, and report loudly on what does not.
 
     One broken feed never stops the others, but it does leave the run
-    `degraded`, which the CLI turns into a non-zero exit code so a cron failure
+    `degraded`, which the CLI turns into a non-zero exit code so a failure
     is visible without reading the database.
     """
     run_id = start_run(conn, now)

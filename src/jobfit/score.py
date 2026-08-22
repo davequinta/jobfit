@@ -190,8 +190,8 @@ def apply_guardrails(score: Score) -> Score:
 def score_posting(client, rubric: Rubric, posting: dict, cache_ttl: str | None = None) -> ScoreResult:
     """Score one posting. Used for development and for the eval loop.
 
-    The nightly run uses the Batches API instead — same request shape, 50% of
-    the price, no latency requirement because the queue is read in the morning.
+    A scheduled run can use the Batches API instead — same request shape, 50%
+    of the price, no latency requirement when the queue is read later.
     """
     response = client.messages.parse(**build_request(rubric, posting, cache_ttl))
     usage = Usage(

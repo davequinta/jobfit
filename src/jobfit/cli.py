@@ -11,7 +11,7 @@ import shutil
 import sys
 from pathlib import Path
 
-from jobfit import evals, ingest, prefilter, queue, score
+from jobfit import cvimport, evals, ingest, prefilter, queue, score
 
 TEMPLATES = Path(__file__).parent / "templates"
 
@@ -25,6 +25,7 @@ SCAFFOLD = [
 ]
 
 COMMANDS = {
+    "cv": cvimport.main,
     "ingest": ingest.main,
     "prefilter": prefilter.main,
     "score": score.main,
@@ -37,6 +38,7 @@ USAGE = """usage: jobfit <command> [options]
 
 commands:
   init        write starter config files into the current directory
+  cv          convert your existing CV (PDF/md/txt) into profile/cv.md
   ingest      stage 1 — pull postings from the configured feeds into SQLite
   prefilter   stage 2 — apply the deterministic rules to stored postings
   score       stage 3 — score surviving postings against your CV (uses the API)

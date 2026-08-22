@@ -72,7 +72,7 @@ def test_no_arguments_prints_usage(project, capsys):
 def test_stage_commands_are_reachable_from_the_cli():
     # The dispatch table is the contract between `jobfit <stage>` and the stage
     # modules; a renamed stage should break here, not at 3am in cron.
-    assert set(cli.COMMANDS) == {"ingest", "prefilter", "score", "queue", "label", "eval"}
+    assert set(cli.COMMANDS) == {"cv", "ingest", "prefilter", "score", "queue", "label", "eval"}
     assert all(callable(fn) for fn in cli.COMMANDS.values())
 
 

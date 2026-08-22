@@ -2,7 +2,8 @@
 
 A local pipeline that ingests remote job postings, filters them with cheap
 deterministic rules, and scores the survivors against your CV with one LLM call
-each. It runs on your laptop from cron. **It does not submit applications.**
+each. It runs on your laptop, when you tell it to. **It does not submit
+applications.**
 
 Reading ~150 postings a week to find the 15 worth applying to is the bottleneck,
 not the applying. This tool does the reading.
@@ -60,10 +61,11 @@ Then fill in three things:
 |---|---|
 | `.env` | `JOBFIT_CONTACT` (an address feeds can reach you at, sent in the User-Agent) and `ANTHROPIC_API_KEY` for stage 3. See [.env.example](.env.example) for what each one is and where to get it. |
 | `profile/stack.yaml` | Your stack, the titles you never want to see, the phrases that mean you are not eligible. |
-| `profile/cv.md` | Your CV as markdown. Stage 3 reads it at run time — edit it and re-run to re-score. |
+| `profile/cv.md` | Your CV as markdown. Do not write it by hand — run `jobfit cv path/to/your-cv.pdf` and it converts the one you already have. Stage 3 reads it at run time, so editing it and re-running re-scores everything. |
 | `prompts/score_system.md` | The scoring rubric. Tune the weights to the roles you actually want. |
 
 ```bash
+jobfit cv ~/Documents/my-cv.pdf   # converts your existing CV into profile/cv.md
 jobfit ingest               # stage 1 — free, writes data/jobfit.db
 jobfit prefilter            # stage 2 — free, writes verdicts
 jobfit score --limit 5      # stage 3 — costs money, start small
@@ -82,15 +84,29 @@ they are separate accounts. Get a key at
 
 after you have tuned your rules.
 
-### Running it nightly
+### How often to run it
 
-```cron
-0 3 * * *  cd ~/jobsearch && jobfit ingest && jobfit prefilter && jobfit score && jobfit queue
+Your call, and the tool does not decide for you — it installs no scheduler and
+runs nothing in the background. Every command is one you type.
+
+**Once, when you feel like it.** Run the four commands, read the queue, done.
+This is the sane default while you are still tuning your rules, because you want
+to see the effect of each change rather than wake up to it.
+
+**On a schedule, if you want it.** Once the rules are settled, the four commands
+chain cleanly:
+
+```bash
+cd ~/jobsearch && jobfit ingest && jobfit prefilter && jobfit score && jobfit queue
 ```
 
-Every stage exits non-zero when something is wrong — a feed changed shape, the
-filter fell outside its expected band — so a failure reaches you through cron's
-mail rather than sitting silently in the database.
+Put that behind `cron`, `launchd`, a `Makefile`, or nothing at all. If you do
+schedule it, every stage exits non-zero when something is wrong — a feed changed
+shape, the filter fell outside its expected band — so a failure reaches you
+rather than sitting silently in the database.
+
+Note that `jobfit score` costs money each time it runs. Scheduling it means
+scheduling the spend.
 
 ## Project layout
 
@@ -132,7 +148,7 @@ pytest              # offline, no network, no tokens
 ```
 
 Exit code is `0` for a clean run and `1` if any feed failed or changed shape, so
-a cron entry surfaces the failure without anyone reading the database.
+a scheduled run surfaces the failure without anyone reading the database.
 
 ### What it does
 
@@ -252,8 +268,8 @@ below that the funnel is not paying for itself, above it the filter is probably
 eating good postings.
 
 `stale` dominating is an artifact of the first run. RSS category feeds carry
-months of backlog, so the initial ingest pulls a lot of history; a nightly
-incremental run sees far fewer stale postings and the mix shifts.
+months of backlog, so the first ingest pulls a lot of history; later runs see
+far fewer stale postings and the mix shifts.
 
 ### Two matching rules, both learned from the data
 
@@ -391,7 +407,8 @@ _Anywhere in the World · $120k - $150k · seniority match · high confidence_
 ```
 
 **`out/applications.csv`** — append-only, importable into a tracking sheet, and
-deduplicated by URL so a nightly cron never records the same posting twice.
+deduplicated by URL, so running it repeatedly never records the same posting
+twice.
 `status`, `applied_date`, `contact` and the next-action columns are left empty
 on purpose: they are yours to fill in, and a tracking sheet full of invented
 state is worse than an empty one.
@@ -477,6 +494,37 @@ changing shape is a red test rather than a silent zero-posting run. Stage 3 uses
 an injected fake client, so the eval loop never spends tokens.
 
 Requires Python 3.11 or newer.
+
+## Importing your CV
+
+```bash
+jobfit cv ~/Documents/my-cv.pdf      # also accepts .md and .txt
+jobfit cv ~/Documents/my-cv.pdf --force   # overwrite an existing profile/cv.md
+```
+
+`jobfit init` scaffolds a blank `profile/cv.md`, and filling that in by hand is
+the biggest piece of setup friction in the tool — everybody already has a CV, it
+is just a PDF. This converts the one you have. One API call, roughly $0.02.
+
+It does three things a copy-paste would not:
+
+- **Builds the Location section.** Eligibility is 20 of the 100 rubric points
+  and almost no CV states it, so this infers the country from a phone code or
+  address, works out the real working-hours overlap, and says where you are not
+  authorised to work. Without it, every posting loses points it should not.
+- **Computes years of experience from the dates.** Today's date is passed in,
+  because a model left to itself reckons against its training cutoff and
+  undercounts. On a real CV that error read "roughly 6.5 years" for someone with
+  7 years and 3 months, which is the difference between clearing a "7+ years"
+  requirement and failing it.
+- **Drops referees.** Other people's names and phone numbers are third-party
+  personal data and irrelevant to scoring.
+
+**Read the result before scoring it.** The instructions forbid inventing
+anything, and a document that extracts to no text — a scanned PDF has no text
+layer — is refused rather than converted into a confident work of fiction. But
+this is still a model reformatting your career, and it is the file every posting
+gets compared against. Five minutes of reading is cheap.
 
 ## Evals
 
