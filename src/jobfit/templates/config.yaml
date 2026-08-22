@@ -1,0 +1,45 @@
+db_path: data/jobfit.db
+
+# Identifies the tool to every source. The contact address is read from
+# JOBFIT_CONTACT in .env (gitignored) and appended, so a public repo never
+# carries a personal email but real requests still say who to complain to.
+user_agent: "jobfit/0.1 (+https://github.com/davequinta/jobfit)"
+contact_env: JOBFIT_CONTACT
+
+rate_limit_seconds: 1.0
+
+feeds:
+  # --- Remotive -------------------------------------------------------------
+  # remotive.com/robots.txt has "Disallow: /api/*" for all user agents, while
+  # the API response itself carries a legal notice granting developers access
+  # on condition that listings link back to the Remotive URL and credit
+  # Remotive as the source. The Disallow is aimed at search indexers, not API
+  # consumers; robots_exemption records that this is a deliberate, argued
+  # decision rather than an oversight, and every run logs it at WARNING.
+  # Both conditions are met: postings.url is the Remotive URL, and
+  # postings.source names Remotive in the queue output.
+  # Delete this entry to drop the source — nothing else needs changing.
+  - name: remotive
+    kind: remotive_json
+    url: https://remotive.com/api/remote-jobs?category=software-development
+    robots_exemption: "documented public API; access granted by Remotive's own API terms"
+
+  # --- We Work Remotely -----------------------------------------------------
+  # Fully allowed by robots.txt. One RSS feed per engineering category; the
+  # site-wide /remote-jobs.rss is deliberately not used because it is a strict
+  # superset that adds non-engineering roles for the prefilter to throw away.
+  - name: weworkremotely
+    kind: rss
+    url: https://weworkremotely.com/categories/remote-full-stack-programming-jobs.rss
+  - name: weworkremotely
+    kind: rss
+    url: https://weworkremotely.com/categories/remote-programming-jobs.rss
+  - name: weworkremotely
+    kind: rss
+    url: https://weworkremotely.com/categories/remote-back-end-programming-jobs.rss
+  - name: weworkremotely
+    kind: rss
+    url: https://weworkremotely.com/categories/remote-front-end-programming-jobs.rss
+  - name: weworkremotely
+    kind: rss
+    url: https://weworkremotely.com/categories/remote-devops-sysadmin-jobs.rss

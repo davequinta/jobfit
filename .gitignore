@@ -1,0 +1,21 @@
+# Secrets and personal data — check this file before every commit (see CLAUDE.md)
+.env
+profile/*
+!profile/*.example.md
+queue/
+out/
+
+# Data
+*.db
+*.db-wal
+*.db-shm
+data/
+
+# Python
+build/
+dist/
+*.egg-info/
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/

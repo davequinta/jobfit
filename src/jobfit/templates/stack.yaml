@@ -1,0 +1,93 @@
+# Copy to profile/stack.yaml (gitignored) and edit.
+#
+# Stage 2 uses `stack` for the zero-overlap rule and nothing else. Matching is
+# on word boundaries, case-insensitive, and each entry's aliases are what
+# actually get matched — "Next.js" never appears literally in half the postings
+# that want it.
+#
+# Keep short, ambiguous tokens (Go, R, C) out of aliases unless you can spell
+# them unambiguously. "Go" as a substring matches "going" and "Google".
+
+stack:
+  - name: python
+    aliases: [python, django, fastapi, flask]
+  - name: javascript
+    aliases: [javascript, typescript, node.js, nodejs]
+  - name: react
+    aliases: [react, react.js, next.js, nextjs, remix]
+  - name: cloud
+    aliases: [aws, ec2, ecs, s3, lambda, cloudformation, terraform]
+  - name: data
+    aliases: [postgresql, postgres, mongodb, redis, sql]
+  - name: devops
+    aliases: [docker, ci/cd, github actions, kubernetes]
+  - name: llm
+    aliases: [llm, openai, anthropic, claude, rag, langchain, mcp]
+
+# Titles that are never worth reading, matched case-insensitively as whole
+# phrases anywhere in the title.
+title_exclusions:
+  - intern
+  - internship
+  - product manager
+  - project manager
+  - program manager
+  - product owner
+  - designer
+  - ux researcher
+  - sales
+  - account executive
+  - recruiter
+  - marketing
+  - marketer
+  - copywriter
+  - customer success
+  - support engineer
+  # Added after auditing a real run: these all survived every other rule.
+  - analyst
+  - coach
+  - director
+  - vp
+  - head of
+  - data scientist
+
+# Junior signals in the title or the first part of the description.
+junior_signals:
+  - junior
+  - entry level
+  - entry-level
+  - graduate
+  - new grad
+  - "0-2 years"
+  - "1-2 years"
+
+# Phrases that mean this posting is closed to someone based in LATAM.
+# Kept conservative on purpose: a false reject here costs a real opportunity,
+# and stage 3 re-checks eligibility anyway.
+location_exclusions:
+  - us citizens only
+  - u.s. citizens only
+  - must be a us citizen
+  - united states only
+  - usa only
+  - us residents only
+  - must reside in the united states
+  - security clearance
+  - eu only
+  - europe only
+  - emea only
+  - uk only
+  - asia only
+  - india only
+  - north america only
+
+# Structured location values that are eligible outright. Anything not listed
+# here falls through to the description-phrase check rather than being rejected.
+location_allowlist:
+  - anywhere in the world
+  - worldwide
+  - americas
+  - latam
+  - remote
+
+max_age_days: 14
