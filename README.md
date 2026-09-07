@@ -18,7 +18,7 @@ markdown. The defaults are one engineer's and are meant to be replaced.
 |---|---|
 | 1 — ingest | **Working.** 846 postings from 5 sources on real data. |
 | 2 — prefilter | **Working.** Cuts 846 to 135. |
-| 3 — score | **Built, never run.** Prompt, schema, storage and tests are done; it has not yet made a single real API call. |
+| 3 — score | **Working.** 135 postings scored against real feed data on 2026-08-23 (`claude-sonnet-5`, synchronous path). Prompt caching confirmed live: 653,952 cache-read tokens against 170,838 uncached input tokens. Whether the scores are any *good* is unmeasured — see the Evals row. |
 | Queue output | **Working.** Writes `queue/YYYY-MM-DD.md` and appends to `out/applications.csv`. |
 | 4 — draft | **Not built.** Queue entries carry no cover-letter opener. |
 | Evals | **Harness built, unlabelled.** `jobfit label` / `jobfit eval` work; nobody has hand-labelled a set yet, so no precision or recall numbers exist. |
