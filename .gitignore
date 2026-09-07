@@ -14,6 +14,9 @@ prompts/
 *.db-shm
 data/
 
+# Browser-automation scratch from verifying the UI
+.playwright-mcp/
+
 # Python
 build/
 dist/

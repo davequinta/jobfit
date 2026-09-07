@@ -1,0 +1,333 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>jobfit</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ctext y='14' font-size='14'%3E%E2%97%8D%3C/text%3E%3C/svg%3E">
+<style>
+  :root {
+    --bg: #fbfaf8; --panel: #ffffff; --ink: #1c1a17; --muted: #6b665e;
+    --line: #e3ded6; --accent: #8a5a2b; --good: #2f6f4f; --bad: #9b3b2f;
+    --dim: #f4f1ec;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #161513; --panel: #1e1d1a; --ink: #ece8e1; --muted: #9b948a;
+      --line: #302e2a; --accent: #c8945c; --good: #7fb99a; --bad: #d98b7d;
+      --dim: #211f1c;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 15px/1.55 ui-sans-serif, -apple-system, "Segoe UI", system-ui, sans-serif;
+  }
+  header {
+    position: sticky; top: 0; z-index: 5; background: var(--bg);
+    border-bottom: 1px solid var(--line); padding: 14px 24px 0;
+  }
+  h1 { font-size: 16px; margin: 0 0 10px; letter-spacing: .02em; }
+  h1 span { color: var(--muted); font-weight: 400; }
+  nav { display: flex; gap: 4px; }
+  nav button {
+    background: none; border: 0; border-bottom: 2px solid transparent;
+    color: var(--muted); font: inherit; padding: 8px 12px; cursor: pointer;
+  }
+  nav button[aria-selected="true"] { color: var(--ink); border-color: var(--accent); }
+  main { padding: 20px 24px 80px; max-width: 1000px; }
+
+  .controls {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+    padding: 16px 18px; margin-bottom: 18px;
+  }
+  .sliderRow { display: flex; align-items: center; gap: 14px; }
+  .sliderRow input[type=range] { flex: 1; accent-color: var(--accent); }
+  .cut { font-variant-numeric: tabular-nums; font-size: 26px; min-width: 2.6ch; text-align: right; }
+  .surfaced { color: var(--muted); font-size: 13px; margin-top: 8px; }
+  button.save {
+    background: var(--accent); color: #fff; border: 0; border-radius: 6px;
+    padding: 7px 14px; font: inherit; cursor: pointer;
+  }
+  button.save:disabled { opacity: .45; cursor: default; }
+  button.ghost {
+    background: none; color: var(--ink); border: 1px solid var(--line);
+    border-radius: 6px; padding: 7px 14px; font: inherit; cursor: pointer;
+  }
+
+  .metrics { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
+  .metric {
+    border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px;
+    min-width: 120px; background: var(--bg);
+  }
+  .metric b { display: block; font-size: 20px; font-variant-numeric: tabular-nums; }
+  .metric span { color: var(--muted); font-size: 12px; }
+  .note { color: var(--muted); font-size: 12.5px; margin-top: 10px; }
+
+  .card {
+    background: var(--panel); border: 1px solid var(--line); border-left-width: 3px;
+    border-radius: 8px; padding: 14px 16px; margin-bottom: 10px;
+  }
+  .card.below { background: var(--dim); opacity: .62; }
+  .card > summary { cursor: pointer; list-style: none; display: flex; gap: 12px; align-items: baseline; }
+  .card > summary::-webkit-details-marker { display: none; }
+  .score {
+    font-variant-numeric: tabular-nums; font-size: 19px; min-width: 2.4ch;
+  }
+  .who { flex: 1; }
+  .who b { font-weight: 600; }
+  .who i { font-style: normal; color: var(--muted); }
+  .tag {
+    font-size: 11px; border: 1px solid var(--line); border-radius: 20px;
+    padding: 1px 8px; color: var(--muted); white-space: nowrap;
+  }
+  .tag.apply { color: var(--good); border-color: var(--good); }
+  .tag.skip { color: var(--bad); border-color: var(--bad); }
+  .body { margin-top: 12px; border-top: 1px solid var(--line); padding-top: 12px; }
+  .body h4 { margin: 12px 0 4px; font-size: 12px; text-transform: uppercase;
+             letter-spacing: .06em; color: var(--muted); font-weight: 600; }
+  .body ul { margin: 0; padding-left: 18px; }
+  .body li { margin: 3px 0; }
+  .body a { color: var(--accent); }
+  .divider { color: var(--muted); font-size: 12px; text-align: center;
+             margin: 22px 0 14px; letter-spacing: .08em; text-transform: uppercase; }
+
+  label.field { display: block; margin: 16px 0 6px; font-size: 13px; color: var(--muted); }
+  textarea, input[type=number] {
+    width: 100%; background: var(--panel); color: var(--ink);
+    border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px;
+    font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  input[type=number] { width: 110px; }
+  .band { font-size: 13px; margin-top: 10px; }
+  .band.ok { color: var(--good); } .band.off { color: var(--bad); }
+  table { border-collapse: collapse; font-size: 13px; margin-top: 10px; }
+  td { padding: 2px 14px 2px 0; }
+  td.n { text-align: right; font-variant-numeric: tabular-nums; }
+  .hidden { display: none; }
+</style>
+</head>
+<body>
+<header>
+  <h1>jobfit <span id="subtitle">loading…</span></h1>
+  <nav>
+    <button id="tabResults" aria-selected="true">Results</button>
+    <button id="tabRules" aria-selected="false">Rules</button>
+  </nav>
+</header>
+
+<main>
+  <section id="results">
+    <div class="controls">
+      <div class="sliderRow">
+        <span class="cut" id="cutValue">–</span>
+        <input type="range" id="cut" min="0" max="100" step="1" value="25">
+        <button class="save" id="saveCut">Save as default</button>
+      </div>
+      <div class="surfaced" id="surfaced"></div>
+      <div class="metrics" id="metrics"></div>
+      <div class="note" id="metricsNote"></div>
+    </div>
+    <div id="list"></div>
+  </section>
+
+  <section id="rules" class="hidden">
+    <div class="controls">
+      <div class="surfaced" id="cutSummary"></div>
+      <div class="band" id="band"></div>
+      <table id="reasons"></table>
+      <div style="margin-top:14px; display:flex; gap:8px;">
+        <button class="ghost" id="preview">Preview the cut</button>
+        <button class="save" id="saveRules">Save rules</button>
+      </div>
+      <div class="note">Preview evaluates the stored postings in memory. Nothing
+        reaches the database until you run <code>jobfit prefilter</code>.</div>
+    </div>
+
+    <label class="field">Stack — one group per line, as <code>name: alias, alias</code></label>
+    <textarea id="stack" rows="9"></textarea>
+    <label class="field">Title exclusions — one per line</label>
+    <textarea id="titles" rows="6"></textarea>
+    <label class="field">Junior signals — one per line</label>
+    <textarea id="junior" rows="4"></textarea>
+    <label class="field">Location exclusions — one per line</label>
+    <textarea id="locOut" rows="5"></textarea>
+    <label class="field">Location allowlist — one per line</label>
+    <textarea id="locIn" rows="4"></textarea>
+    <label class="field">Maximum age, in days</label>
+    <input type="number" id="maxAge" min="1" max="365">
+  </section>
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+let STATE = null;
+
+const lines  = text => text.split("\n").map(s => s.trim()).filter(Boolean);
+const escape = text => String(text).replace(/[&<>"]/g, c =>
+  ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+async function load() {
+  STATE = await (await fetch("/api/state")).json();
+  $("cut").value = STATE.threshold;
+  $("subtitle").textContent =
+    `${STATE.postings.length} scored · ${STATE.labelled} labelled`;
+  fillRules(STATE.rules);
+  showPrefilter(STATE.prefilter);
+  render();
+}
+
+// --- results -----------------------------------------------------------------
+
+function render() {
+  const cut = +$("cut").value;
+  $("cutValue").textContent = cut;
+  const above = STATE.postings.filter(p => p.score >= cut);
+  $("surfaced").textContent =
+    `${above.length} of ${STATE.postings.length} postings reach the queue at ${cut}.`;
+  renderMetrics(cut);
+
+  const below = STATE.postings.filter(p => p.score < cut);
+  $("list").innerHTML =
+    above.map(posting => card(posting)).join("") +
+    (below.length ? `<div class="divider">below the cut — ${below.length}</div>` : "") +
+    below.map(posting => card(posting, true)).join("");
+}
+
+function renderMetrics(cut) {
+  const row = (STATE.metrics || []).find(m => m.threshold === cut);
+  if (!row) {
+    $("metrics").innerHTML = "";
+    $("metricsNote").textContent = STATE.labelled
+      ? "" : "No hand labels yet — run `jobfit label --review` to measure this cut.";
+    return;
+  }
+  const pct = v => v === null ? "n/a" : Math.round(v * 100) + "%";
+  $("metrics").innerHTML = `
+    <div class="metric"><b>${pct(row.precision)}</b>
+      <span>precision — ${row.true_positives} of ${row.surfaced} surfaced were real</span></div>
+    <div class="metric"><b>${pct(row.recall)}</b>
+      <span>recall — ${row.true_positives} of ${row.relevant} good ones surfaced</span></div>
+    <div class="metric"><b>${row.false_positives}</b>
+      <span>false positives · 20 min each</span></div>
+    <div class="metric"><b>${row.false_negatives}</b>
+      <span>false negatives · missed</span></div>`;
+  $("metricsNote").textContent =
+    `Measured against ${STATE.labelled} hand labels. Small sample: read ` +
+    `evals/results.md before quoting these. Borderline labels are excluded.`;
+}
+
+function card(posting, below = false) {
+  const bullets = items => items.length
+    ? `<ul>${items.map(b => `<li>${escape(b)}</li>`).join("")}</ul>` : "<p>—</p>";
+  const label = posting.label
+    ? `<span class="tag ${posting.label}">${posting.label}</span>` : "";
+  return `
+  <details class="card${below ? " below" : ""}">
+    <summary>
+      <span class="score">${posting.score}</span>
+      <span class="who"><b>${escape(posting.company)}</b> — <i>${escape(posting.title)}</i></span>
+      ${label}
+      <span class="tag">${escape(posting.seniority)}</span>
+      <span class="tag">${posting.eligible ? "eligible" : "not eligible"}</span>
+    </summary>
+    <div class="body">
+      <p><a href="${escape(posting.url)}" target="_blank" rel="noreferrer">${escape(posting.url)}</a></p>
+      <p>${escape(posting.location)} · ${escape(posting.comp || posting.salary)} · posted ${escape(posting.posted)} · confidence ${escape(posting.confidence)}</p>
+      <h4>Why it fits</h4>${bullets(posting.why_fit)}
+      <h4>Why it might not</h4>${bullets(posting.why_not)}
+      ${posting.red_flags.length ? `<h4>Red flags</h4>${bullets(posting.red_flags)}` : ""}
+      <h4>Stack</h4>
+      <p>have: ${escape(posting.stack_overlap.join(", ") || "—")}<br>
+         gaps: ${escape(posting.stack_gaps.join(", ") || "—")}</p>
+    </div>
+  </details>`;
+}
+
+// --- rules -------------------------------------------------------------------
+
+function fillRules(rules) {
+  $("stack").value = rules.stack
+    .map(group => `${group.name}: ${group.aliases.join(", ")}`).join("\n");
+  $("titles").value = rules.title_exclusions.join("\n");
+  $("junior").value = rules.junior_signals.join("\n");
+  $("locOut").value = rules.location_exclusions.join("\n");
+  $("locIn").value  = rules.location_allowlist.join("\n");
+  $("maxAge").value = rules.max_age_days;
+}
+
+function readRules() {
+  return {
+    stack: lines($("stack").value).map(line => {
+      const [name, aliases = ""] = line.split(/:(.*)/s);
+      return { name: name.trim(), aliases: lines(aliases.replace(/,/g, "\n")) };
+    }),
+    title_exclusions: lines($("titles").value),
+    junior_signals: lines($("junior").value),
+    location_exclusions: lines($("locOut").value),
+    location_allowlist: lines($("locIn").value),
+    max_age_days: +$("maxAge").value,
+  };
+}
+
+function showPrefilter(summary) {
+  $("cutSummary").textContent =
+    `${summary.evaluated} postings evaluated · ${summary.survived} survive · ` +
+    `${Math.round(summary.cut_ratio * 100)}% cut`;
+  $("band").className = "band " + (summary.within_expected_band ? "ok" : "off");
+  $("band").textContent = summary.within_expected_band
+    ? "Within the expected 50–85% band."
+    : "Outside the expected 50–85% band — the rules need tuning.";
+  $("reasons").innerHTML = Object.entries(summary.by_reason)
+    .sort((a, b) => b[1] - a[1])
+    .map(([reason, n]) => `<tr><td class="n">−${n}</td><td>${escape(reason)}</td></tr>`)
+    .join("");
+}
+
+async function post(path, body) {
+  const response = await fetch(path, {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const payload = await response.json();
+  if (!response.ok) throw new Error(payload.error || "request failed");
+  return payload;
+}
+
+// --- wiring ------------------------------------------------------------------
+
+$("cut").addEventListener("input", render);
+$("saveCut").addEventListener("click", async event => {
+  event.target.disabled = true;
+  try {
+    await post("/api/threshold", { threshold: +$("cut").value });
+    event.target.textContent = "Saved";
+    setTimeout(() => { event.target.textContent = "Save as default"; }, 1400);
+  } catch (error) { alert(error.message); }
+  event.target.disabled = false;
+});
+$("preview").addEventListener("click", async () => {
+  try { showPrefilter(await post("/api/rules/preview", readRules())); }
+  catch (error) { alert(error.message); }
+});
+$("saveRules").addEventListener("click", async event => {
+  try {
+    await post("/api/rules", readRules());
+    event.target.textContent = "Saved";
+    setTimeout(() => { event.target.textContent = "Save rules"; }, 1400);
+  } catch (error) { alert(error.message); }
+});
+for (const [button, shown, hidden] of [["tabResults", "results", "rules"],
+                                       ["tabRules", "rules", "results"]]) {
+  $(button).addEventListener("click", () => {
+    $(shown).classList.remove("hidden");
+    $(hidden).classList.add("hidden");
+    $("tabResults").ariaSelected = String(shown === "results");
+    $("tabRules").ariaSelected = String(shown === "rules");
+  });
+}
+
+load();
+</script>
+</body>
+</html>

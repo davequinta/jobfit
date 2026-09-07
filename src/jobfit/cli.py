@@ -11,7 +11,7 @@ import shutil
 import sys
 from pathlib import Path
 
-from jobfit import cvimport, evals, ingest, prefilter, queue, score
+from jobfit import cvimport, evals, ingest, prefilter, queue, score, ui
 
 TEMPLATES = Path(__file__).parent / "templates"
 
@@ -32,6 +32,7 @@ COMMANDS = {
     "queue": queue.main,
     "label": evals.label_main,
     "eval": evals.eval_main,
+    "ui": ui.main,
 }
 
 USAGE = """usage: jobfit <command> [options]
@@ -45,6 +46,7 @@ commands:
   queue       write queue/YYYY-MM-DD.md and append to out/applications.csv
   label       append unlabelled postings to the eval set for hand labelling
   eval        measure the scorer against your labels (offline, no API calls)
+  ui          read a run and choose where to cut it, in a browser (local only)
 
 `jobfit <command> --help` describes a command's options."""
 

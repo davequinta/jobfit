@@ -177,9 +177,11 @@ def _csv_row(entry: dict, day: str) -> dict:
 
 def main(argv: list[str] | None = None) -> int:
     parser = runtime.stage_parser("Write the review queue and tracking CSV.")
-    parser.add_argument("--threshold", type=int, default=DEFAULT_THRESHOLD)
+    parser.add_argument("--threshold", type=int,
+                        help=f"override the configured cut (default {DEFAULT_THRESHOLD})")
     parser.add_argument("--day", help="date stamp for the queue file (default: today, UTC)")
     args = parser.parse_args(argv)
+    args.threshold = runtime.threshold(args)
 
     runtime.configure_logging()
     day = args.day or db.iso_now()[:10]

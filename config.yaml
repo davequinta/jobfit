@@ -1,5 +1,9 @@
 db_path: data/jobfit.db
 
+# The score at or above which a posting reaches the queue. Measured, not
+# chosen: see evals/results.md. `jobfit ui` writes this key.
+threshold: 25
+
 # Identifies the tool to every source. The contact address is read from
 # JOBFIT_CONTACT in .env (gitignored) and appended, so a public repo never
 # carries a personal email but real requests still say who to complain to.

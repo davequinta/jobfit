@@ -20,6 +20,7 @@ markdown. The defaults are one engineer's and are meant to be replaced.
 | 2 — prefilter | **Working.** Cuts 846 to 135. |
 | 3 — score | **Working.** 135 postings scored against real feed data on 2026-08-23 (`claude-sonnet-5`, synchronous path). Prompt caching confirmed live: 653,952 cache-read tokens against 170,838 uncached input tokens. Whether the scores are any *good* is unmeasured — see the Evals row. |
 | Queue output | **Working.** Writes `queue/YYYY-MM-DD.md` and appends to `out/applications.csv`. |
+| Local UI | **Working.** `jobfit ui` serves one page on 127.0.0.1: the run, a threshold you can drag with precision and recall moving under it, and the prefilter rules with a live preview of what they would cut. |
 | 4 — draft | **Dropped**, not pending. Cut on 2026-09-07 rather than left as a stub — the reasoning is in SPEC.md. |
 | Evals | **Measured.** 39 postings hand-labelled; precision 13 of 15, recall 13 of 22 at threshold 25. The numbers and everything they do not support are in [evals/results.md](evals/results.md). |
 
@@ -74,6 +75,7 @@ jobfit ingest               # stage 1 — free, writes data/jobfit.db (~3 min fi
 jobfit prefilter            # stage 2 — free, writes verdicts
 jobfit score --limit 5      # stage 3 — costs money, start small
 jobfit queue                # writes queue/YYYY-MM-DD.md — this is what you read
+jobfit ui                   # read the run in a browser and choose where to cut it
 ```
 
 Open `queue/YYYY-MM-DD.md`. That is the product.
@@ -654,10 +656,44 @@ the numbers. Never change the rubric and the threshold in the same run — if th
 numbers move you need to know which one did it. `jobfit eval` warns when the
 stored scores come from more than one rubric version.
 
+## The local page
+
+```bash
+jobfit ui                 # http://127.0.0.1:8765
+jobfit ui --port 9000 --no-browser
+```
+
+It exists because of one number. The queue shipped cutting at 70 while the
+scorer's real range turned out to be 8–78, so it surfaced 1 posting in 22 that
+deserved one — and that sat unnoticed for two weeks. A threshold is invisible in
+a config file and obvious the moment you can drag it and watch the list and the
+precision move together.
+
+**Results** ranks every scored posting, dims the ones under the cut rather than
+hiding them, and expands to the `why_fit` and `why_not` bullets. Drag the
+threshold and the queue size, precision, recall and both error counts update
+against your hand labels. *Save as default* writes `threshold:` into
+`config.yaml`, which is what `jobfit queue` and `jobfit eval` then read.
+
+**Rules** edits the stage 2 filters — stack aliases, title exclusions, junior
+signals, eligibility phrases, maximum age — and previews the cut they would
+produce over the stored postings. Nothing reaches the database until you run
+`jobfit prefilter` yourself.
+
+Two things it deliberately does not do. **It does not compute precision in
+JavaScript**: every threshold from 0 to 100 is evaluated server-side by the same
+`evals.evaluate` the eval suite tests, and shipped as a lookup table, so the
+number on screen cannot drift from the number in `evals/results.md`. And **it
+does not write to the database** — it reads what the stages wrote and edits
+config files, so there is no path where looking at a run changes it.
+
 ## What is deliberately not here
 
-- **No web UI or dashboard.** Config is YAML, the CV is markdown, the output is
-  a file. Everything you would configure changes monthly at most.
+- **No hosted dashboard.** There is a local page — `jobfit ui`, served from the
+  standard library on 127.0.0.1 and gone when you close it — because one number
+  in a config file turned out to be worth seeing against the data it acts on.
+  It is not a service: nothing is deployed, nothing listens on a public
+  interface, and every stage still runs from the CLI without it.
 - **No multi-user support, no hosting, no accounts.** Everyone runs their own.
   Your CV and your API key never leave your machine.
 - **No auto-submission, anywhere, under any conditions.** Auto-submitted

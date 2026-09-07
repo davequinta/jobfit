@@ -435,9 +435,11 @@ def eval_main(argv: list[str] | None = None) -> int:
     """Score the hand-labelled set against stored scores. Never calls the API."""
     parser = runtime.stage_parser("Measure the scorer against hand labels. Offline; uses stored scores.")
     parser.add_argument("--labels", default=str(LABELS_PATH))
-    parser.add_argument("--threshold", type=int, default=runtime.DEFAULT_THRESHOLD)
+    parser.add_argument("--threshold", type=int,
+                        help=f"override the configured cut (default {runtime.DEFAULT_THRESHOLD})")
     parser.add_argument("--note", help="what changed since the last run; logs a row to results.md")
     args = parser.parse_args(argv)
+    args.threshold = runtime.threshold(args)
 
     labels_path = Path(args.labels)
     if not labels_path.is_file():

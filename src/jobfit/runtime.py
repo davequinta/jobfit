@@ -43,6 +43,22 @@ def load_config(path: str) -> dict:
     return yaml.safe_load(Path(path).read_text())
 
 
+def threshold(args) -> int:
+    """The score to cut at: `--threshold` if given, else the config's, else the default.
+
+    A malformed `threshold:` in the config raises rather than falling back — a
+    typo that quietly reverts the cut to 25 is the kind of silence this project
+    does not allow. A missing key is not a malformation; it means "the default".
+    """
+    if getattr(args, "threshold", None) is not None:
+        return args.threshold
+    path = Path(args.config)
+    config = load_config(args.config) if path.is_file() else {}
+    if "threshold" not in config:
+        return DEFAULT_THRESHOLD
+    return int(config["threshold"])
+
+
 def open_db(args) -> sqlite3.Connection:
     """The database this run should use: `--db` if given, else the config's."""
     return db.connect(args.db or load_config(args.config)["db_path"])

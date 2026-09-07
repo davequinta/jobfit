@@ -32,8 +32,6 @@ import yaml
 
 from jobfit import db, runtime
 
-from jobfit import runtime
-
 log = logging.getLogger("jobfit.prefilter")
 
 # Words that are ambiguous in a job description but decisive in a title.
