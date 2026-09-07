@@ -584,9 +584,9 @@ gets compared against. Five minutes of reading is cheap.
 The part that separates this from a demo, and the part most likely to get cut.
 
 ```bash
-jobfit label                  # appends unlabelled postings to evals/labeled.jsonl
+jobfit label                  # collects unlabelled postings into evals/labeled.jsonl
+jobfit label --review         # judge them one at a time, in the terminal
 jobfit label --rewrite        # refresh unlabelled entries, keeping labels you have made
-$EDITOR evals/labeled.jsonl   # fill in: apply | skip | borderline, plus one line of reason
 jobfit eval                   # offline — measures stored scores against your labels
 jobfit eval --note "widened stack aliases"   # also logs a row to evals/results.md
 ```
@@ -601,6 +601,14 @@ location, salary, date, the stack keywords stage 2 matched, and an excerpt:
  "excerpt": "We need someone to own our Django backend…",
  "label": "", "reason": ""}
 ```
+
+`--review` prints one posting at a time and takes a single keystroke — `a`,
+`s`, `b`, Enter to defer it, `q` to stop — followed by one line of reason. It
+rewrites the file after every verdict, so quitting halfway keeps what you
+decided and re-running picks up where you left off. Editing the JSONL in an
+editor still works; the reviewer exists because `"label"` sits at character 654
+of a 676-character line, and forty of those is how an eval set quietly does not
+get made.
 
 **It deliberately does not show you the model's score.** Seeing "the model said
 78" before you decide anchors the label, and measuring the model against labels

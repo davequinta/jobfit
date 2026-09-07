@@ -267,3 +267,131 @@ def test_rewriting_keeps_labels_you_have_already_made():
     assert json.loads(lines[0])["reason"] == "good stack"
     assert json.loads(lines[1])["company"] == "Acme"       # refreshed with context
     assert json.loads(lines[1])["label"] == ""
+
+
+# --- the interactive reviewer ------------------------------------------------
+#
+# Hand-labelling is the step this project most needs a human to do and the step
+# a human is most likely to abandon. These tests are about that: nothing is
+# asked twice, nothing already decided is lost, and the screen stays blind to
+# what the model thought.
+
+
+def record(url="https://a", label="", **kw) -> dict:
+    return {"url": url, "company": "Acme", "title": "Senior Engineer",
+            "location": "Anywhere in the World", "salary": "$120k - $150k",
+            "posted": "2026-08-19", "stack_seen": ["python", "react"],
+            "excerpt": "We need someone to own our Django backend.",
+            "label": label, "reason": "", **kw}
+
+
+def answers(*replies):
+    """An `ask` that replies from a script, and remembers what it was asked."""
+    scripted = list(replies)
+    seen = []
+
+    def ask(entry, position, total):
+        seen.append(entry["url"])
+        reply = scripted.pop(0)
+        if isinstance(reply, Exception):
+            raise reply
+        return reply
+
+    ask.seen = seen
+    return ask
+
+
+def test_the_review_asks_only_about_postings_that_have_no_label_yet():
+    records = [record(url="https://done", label="apply"),
+               record(url="https://todo")]
+    ask = answers(("skip", "wrong stack"))
+
+    evals.review_records(records, ask, save=lambda: None)
+
+    assert ask.seen == ["https://todo"]
+    assert records[0]["label"] == "apply"      # untouched
+    assert records[1]["label"] == "skip"
+    assert records[1]["reason"] == "wrong stack"
+
+
+def test_every_decision_is_saved_as_it_is_made():
+    """Half an hour of labelling must not depend on reaching the last posting."""
+    records = [record(url="https://a"), record(url="https://b")]
+    saves = []
+    ask = answers(("apply", ""), ("skip", ""))
+
+    evals.review_records(records, ask, save=lambda: saves.append(
+        [entry["label"] for entry in records]))
+
+    assert saves == [["apply", ""], ["apply", "skip"]]
+
+
+def test_quitting_early_keeps_the_labels_already_made():
+    records = [record(url="https://a"), record(url="https://b")]
+    ask = answers(("apply", "strong match"), evals.StopReview())
+
+    done = evals.review_records(records, ask, save=lambda: None)
+
+    assert done == 1
+    assert records[0]["label"] == "apply"
+    assert records[1]["label"] == ""           # left for later, not guessed
+
+
+def test_declining_to_decide_leaves_the_posting_unlabelled():
+    records = [record(url="https://a")]
+
+    done = evals.review_records(records, answers(None), save=lambda: None)
+
+    assert done == 0
+    assert records[0]["label"] == ""
+
+
+def test_the_review_screen_carries_what_you_need_to_decide():
+    screen = evals.format_for_review(record(), position=3, total=39)
+
+    assert "3/39" in screen
+    assert "Acme" in screen
+    assert "Senior Engineer" in screen
+    assert "Anywhere in the World" in screen
+    assert "$120k - $150k" in screen
+    assert "python" in screen
+    assert "Django backend" in screen
+    assert "https://a" in screen
+
+
+def test_the_review_screen_never_shows_the_models_verdict():
+    """Same invariant as the skeleton: the label must be independent judgement."""
+    screen = evals.format_for_review(
+        record(fit_score=78, confidence="high"), position=1, total=1)
+
+    assert "78" not in screen
+    assert "fit_score" not in screen
+    assert "confidence" not in screen
+
+
+def test_records_survive_a_round_trip_through_the_file(tmp_path):
+    path = tmp_path / "labeled.jsonl"
+    original = [record(url="https://a", label="apply"),
+                record(url="https://ñ", excerpt="acentuación")]
+
+    evals.write_records(path, original)
+
+    assert evals.read_records(path) == original
+    assert "acentuación" in path.read_text()   # not escaped into \u sequences
+
+
+def test_reviewing_a_file_that_does_not_exist_says_so_rather_than_crashing(tmp_path, capsys):
+    code = evals.review_command(tmp_path / "missing.jsonl")
+
+    assert code == 2
+    assert "does not exist" in capsys.readouterr().err
+
+
+def test_reviewing_a_fully_labelled_file_has_nothing_to_ask(tmp_path, capsys):
+    path = tmp_path / "labeled.jsonl"
+    evals.write_records(path, [record(label="apply")])
+
+    code = evals.review_command(path)
+
+    assert code == 0
+    assert "nothing to review" in capsys.readouterr().out

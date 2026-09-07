@@ -27,6 +27,7 @@ from __future__ import annotations
 import json
 import math
 import sys
+import textwrap
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -245,6 +246,102 @@ RESULTS_HEADER = (
 )
 
 
+# --- hand labelling ----------------------------------------------------------
+#
+# The file this writes is the ground truth everything else is measured against,
+# so the reviewer's job is to make a human's judgement cheap to record — never
+# to supply one.
+
+
+class StopReview(Exception):
+    """Raised by the prompt to stop the review and keep what is already decided."""
+
+
+KEYSTROKES = {"a": "apply", "s": "skip", "b": "borderline"}
+
+
+def read_records(path: str | Path) -> list[dict]:
+    """Every entry in the label file, labelled or not, in file order."""
+    return [
+        json.loads(line)
+        for line in Path(path).read_text().splitlines()
+        if line.strip()
+    ]
+
+
+def write_records(path: str | Path, records: list[dict]) -> None:
+    Path(path).write_text(
+        "".join(json.dumps(record, ensure_ascii=False) + "\n" for record in records)
+    )
+
+
+def format_for_review(record: dict, position: int, total: int) -> str:
+    """One posting as a screen to judge.
+
+    Names the fields it prints rather than dumping the record, so a model
+    verdict that somehow reached the file cannot leak onto the screen and
+    anchor the label. Same invariant as `label_skeleton`, enforced twice
+    because it is the one that makes the numbers mean anything.
+    """
+    stack = ", ".join(record.get("stack_seen") or []) or "none matched"
+    excerpt = textwrap.fill(record.get("excerpt", ""), width=76,
+                            initial_indent="    ", subsequent_indent="    ")
+    return "\n".join([
+        "",
+        f"[{position}/{total}]  {record['company']} — {record['title']}",
+        f"    {record['location']} · {record['salary']} · posted {record['posted'] or 'unknown'}",
+        f"    stack seen: {stack}",
+        f"    {record['url']}",
+        "",
+        excerpt,
+        "",
+    ])
+
+
+def review_records(records: list[dict], ask, save) -> int:
+    """Ask for a verdict on every record that has no label yet.
+
+    Saves after each decision rather than at the end. Labelling forty postings
+    takes half an hour, and a crash at posting thirty that loses the first
+    twenty-nine is how this step gets abandoned.
+    """
+    pending = [record for record in records if not record.get("label")]
+    decided = 0
+    for position, record in enumerate(pending, start=1):
+        try:
+            answer = ask(record, position, len(pending))
+        except StopReview:
+            break
+        if answer is None:
+            continue          # deferred; a label is never guessed on your behalf
+        record["label"], record["reason"] = answer
+        decided += 1
+        save()
+    return decided
+
+
+def ask_at_terminal(record: dict, position: int, total: int):
+    """Print a posting and read a verdict. Enter defers it, q ends the review."""
+    print(format_for_review(record, position, total))
+    while True:
+        try:
+            answer = input("    [a]pply  [s]kip  [b]orderline  [enter] later  [q]uit: ")
+        except EOFError:
+            raise StopReview from None
+        answer = answer.strip().lower()
+        if answer in ("q", "quit"):
+            raise StopReview
+        if not answer:
+            return None
+        if answer in KEYSTROKES:
+            try:
+                reason = input("    why, one line for your future self: ").strip()
+            except EOFError:
+                reason = ""
+            return KEYSTROKES[answer], reason
+        print("    not one of a, s, b, enter or q")
+
+
 # --- commands ----------------------------------------------------------------
 
 LABELS_PATH = Path("evals/labeled.jsonl")
@@ -262,9 +359,14 @@ def label_main(argv: list[str] | None = None) -> int:
     parser.add_argument("--limit", type=int, default=40)
     parser.add_argument("--rewrite", action="store_true",
                         help="refresh unlabelled entries with full context, keeping your labels")
+    parser.add_argument("--review", action="store_true",
+                        help="label the collected postings one at a time in the terminal")
     args = parser.parse_args(argv)
 
     out = Path(args.out)
+    if args.review:
+        return review_command(out)
+
     already = set(load_labels(out)) if out.is_file() else set()
     conn = _open_db(args)
     try:
@@ -297,6 +399,35 @@ def label_main(argv: list[str] | None = None) -> int:
     print('Fill in "label" with apply | skip | borderline, and one line of "reason".')
     print("Aim for roughly 15 apply, 15 skip, 10 borderline — the borderline ones")
     print("are where you learn whether the scorer or you is wrong.")
+    return 0
+
+
+def review_command(out: Path) -> int:
+    """Walk the unlabelled entries in the terminal, saving after each verdict.
+
+    Collecting postings and judging them are separate jobs: the first needs the
+    database, the second needs you. This one only ever touches the file.
+    """
+    if not out.is_file():
+        print(f"jobfit label: {out} does not exist — run `jobfit label` first to "
+              "collect postings to review", file=sys.stderr)
+        return 2
+
+    records = read_records(out)
+    pending = sum(1 for record in records if not record.get("label"))
+    if not pending:
+        print(f"{out}: every entry is labelled — nothing to review.")
+        return 0
+
+    print(f"{pending} postings to label. Enter defers one, q stops and keeps your work.")
+    print("Aim for roughly 15 apply, 15 skip, 10 borderline.")
+    decided = review_records(records, ask_at_terminal,
+                             save=lambda: write_records(out, records))
+
+    left = sum(1 for record in records if not record.get("label"))
+    print(f"\n{decided} labelled this session; {left} still unlabelled in {out}.")
+    if not left:
+        print('Set complete — run `jobfit eval --note "first labelled set"`.')
     return 0
 
 
