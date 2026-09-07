@@ -20,7 +20,7 @@ markdown. The defaults are one engineer's and are meant to be replaced.
 | 2 — prefilter | **Working.** Cuts 846 to 135. |
 | 3 — score | **Working.** 135 postings scored against real feed data on 2026-08-23 (`claude-sonnet-5`, synchronous path). Prompt caching confirmed live: 653,952 cache-read tokens against 170,838 uncached input tokens. Whether the scores are any *good* is unmeasured — see the Evals row. |
 | Queue output | **Working.** Writes `queue/YYYY-MM-DD.md` and appends to `out/applications.csv`. |
-| 4 — draft | **Not built.** Queue entries carry no cover-letter opener. |
+| 4 — draft | **Dropped**, not pending. Cut on 2026-09-07 rather than left as a stub — the reasoning is in SPEC.md. |
 | Evals | **Harness built, unlabelled.** `jobfit label` / `jobfit eval` work; nobody has hand-labelled a set yet, so no precision or recall numbers exist. |
 
 Being blunt about what that means: the funnel runs end to end and produces a
@@ -33,10 +33,12 @@ not as a verdict.
 Scoring a posting is a classification task with a fixed input shape: no
 branching, no state carried between postings, no step where the model decides
 what to do next. An agent loop would add latency, cost, and nondeterminism to
-buy nothing, so stage 3 is a single structured call per posting. The one place
-agentic behaviour might earn its keep is drafting application answers (stage 4),
-and even there it starts as a plain call and only grows tools if the evals show
-it needs them.
+buy nothing, so stage 3 is a single structured call per posting.
+
+The planned counterexample was stage 4, drafting application answers, where a
+model would have had reason to go and look things up. That stage was dropped, so
+the claim is untested here — the argument stands on the scoring stage, which is
+the one that had to be built either way.
 
 **Target roles:** remote Senior Software Engineer and Senior Full Stack, mostly
 with US companies. LLM and agentic work is a tie-breaker between two otherwise

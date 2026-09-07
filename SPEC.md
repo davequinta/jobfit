@@ -31,10 +31,11 @@ branching, no state that carries between postings, and no step where the model
 needs to decide what to do next. An agent loop here would add latency, cost, and
 nondeterminism to buy nothing. Use a single structured call per posting.
 
-The one place agentic behavior earns its keep is drafting the application answers
-(stage 4), where the model may need to pull specifics from my CV, the company's
-site, and the posting. Even there, start with a plain call and only add tools if
-the evals show it's needed.
+The one place agentic behavior might have earned its keep is drafting the
+application answers, where the model would need to pull specifics from my CV,
+the company's site, and the posting. That stage was dropped (see below), so the
+claim was never tested. Worth saying plainly: the argument above stands on the
+scoring stage alone and does not need the counterexample.
 
 **This distinction is the interesting part of the project. Preserve it in the
 README.**
@@ -43,13 +44,14 @@ README.**
 
 ## Architecture
 
-Four stages. Each stage writes to SQLite so any stage can be re-run independently.
+Three stages. Each stage writes to SQLite so any stage can be re-run
+independently. A fourth, `draft`, was planned and then dropped — see below.
 
 ```
-ingest → prefilter → score → draft
- (free)   (free)     (LLM)   (LLM, top N only)
-  ~400     ~120       ~120     ~15
-postings  survive    scored   drafted
+ingest → prefilter → score
+ (free)   (free)     (LLM)
+  ~400     ~120       ~120
+postings  survive    scored
 ```
 
 The funnel shape matters for cost. Never send all 400 postings to the model.
@@ -162,14 +164,21 @@ AI-specialist roles and buries good senior full stack ones.
 - LLM/agent/AI-product work in the role — 10 (bonus, not a requirement)
 - Company stage and comp signals — 10
 
-### Stage 4 — draft (LLM, top N only)
+### Stage 4 — draft — dropped 2026-09-07
 
-For postings scoring above threshold (start at 70), generate:
-- A 4-sentence cover letter opener that references something specific from the
-  posting. If it could be sent to any company, it failed.
-- Draft answers to the 5 recurring screening questions (see `profile/answers.md`).
+Cut permanently, not deferred. It was to generate, for everything above the
+threshold, a cover-letter opener referencing something specific in the posting
+plus answers to the five recurring screening questions.
 
-Never auto-fill and never auto-submit. Output goes to the queue for review.
+Why it goes rather than waits: nothing yet measures whether the postings that
+would reach it are the right ones — the eval set exists but is unlabelled. A
+generator stacked on an unmeasured scorer is a second unmeasured stage, and it
+makes the first one harder to fix, because a bad draft and a bad score look the
+same from the queue. The queue already carries the posting, the score and the
+honest `why_not` bullets, which is the part that saves the reading time; the
+opener is the cheapest part of an application to write yourself.
+
+The queue and CSV formats keep no column for it.
 
 ---
 
@@ -178,7 +187,7 @@ Never auto-fill and never auto-submit. Output goes to the queue for review.
 Two artifacts per run:
 
 1. **`queue/YYYY-MM-DD.md`** — ranked review queue. Each entry: score, company,
-   title, link, why_fit bullets, why_not bullets, draft opener. Designed to be
+   title, link, why_fit bullets and why_not bullets. Designed to be
    read top-to-bottom in 30 minutes over coffee.
 
 2. **`out/applications.csv`** — append-only, importable into the tracking sheet.
@@ -237,7 +246,7 @@ on my laptop. If I want a UI later that's a different project.
 | 3-4 | Prefilter + scorer | End-to-end run produces a scored queue |
 | 5 | Eval loop + rubric tuning | Precision > 0.8 logged in `evals/results.md` |
 | 6 | Batch + caching path | Nightly run costs measured and logged |
-| 7 | Draft stage + CSV export | First real queue used for actual applications |
+| 7 | ~~Draft stage~~ + CSV export | CSV export shipped; the draft stage was dropped — see Stage 4 |
 | 8-10 | README, cleanup, buffer | Repo public |
 
 **On 2026-08-30 the repo goes public in whatever state it is in.** Ship the
@@ -259,6 +268,7 @@ Listed because each of these will feel like a good idea around day 5:
 - Email/Slack notifications
 - Company research enrichment (Glassdoor, Crunchbase, funding data)
 - An agent loop for scoring — see the design decision above
+- Drafting cover letters or screening answers — stage 4, dropped 2026-09-07
 - Fine-tuning or embeddings-based matching
 
 If one of these turns out to matter, it goes in `IDEAS.md` and gets built in
