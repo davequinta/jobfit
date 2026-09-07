@@ -402,27 +402,35 @@ downgraded to `low` and the event is logged.
 
 ### What a run costs
 
-Measured against 39 postings with an average description of ~1,040 tokens and a
-~2,900-token cached prefix. The corpus has since grown to 135 survivors, so
-multiply accordingly — roughly $2 a run at this size, or $1 with the Batch API:
+Measured, not extrapolated: the 135 postings scored on 2026-08-23, on
+`claude-sonnet-5` at $2 / $10 per million tokens.
 
-**Measured**, scoring 39 real postings on Sonnet 5:
+| | tokens | cost | share |
+|---|---|---|---|
+| Output | 74,975 | $0.75 | 57% |
+| Uncached input | 170,838 | $0.34 | 26% |
+| Cache reads, billed at 0.1x | 653,952 | $0.13 | 10% |
+| Cache writes, billed at 1.25x | 35,763 | $0.09 | 7% |
+| **Total** | | **$1.31** | about a cent a posting |
 
-| | tokens | note |
-|---|---|---|
-| Cache reads | 193,762 | 38 of 39 calls, billed at ~10% |
-| Cache writes | 5,099 | once, the first call |
-| Uncached input | 57,253 | the posting text, ~1,470 per posting |
-| Output | 23,653 | ~606 per posting |
-| **Total** | | **$0.615**, or ~$0.31 with the Batch API |
+**Caching works.** 76% of the prompt tokens billed were cache reads. The same
+run with the breakpoint removed would have cost $2.47, so caching paid for 47%
+of it. The cached prefix is ~4,880 tokens per call — rubric, CV, stack profile —
+which clears Sonnet's 2,048-token minimum comfortably. `cache_read_tokens` is
+stored on every score for exactly this reason: a breakpoint broken by a stray
+timestamp shows up as a column of zeros rather than as a 10x invoice.
 
-That is nearly double an earlier estimate, and the reason is worth recording:
-output tokens ran ~600 per posting rather than the ~300 guessed, because honest
-`why_fit` and `why_not` bullets are not short. Output is billed at 5x input, so
-it dominates. Caching worked exactly as designed — one write, 38 reads — and the
-cached prefix is only ~72% of the input, so the funnel shape and the Batch API
-are the bigger levers. Which model is good enough is an eval question, not a guess;
-the client is injected, so swapping it is one line.
+**Output is the expensive half.** 555 output tokens per posting costs more than
+every input token combined, cached and uncached. The lever on this bill is how
+much JSON the rubric asks for, not how many postings reach the model — which is
+the opposite of where the funnel's design attention goes.
+
+$1.31 was a cold start: the first ingest pulled a backlog of 846 postings and
+135 survived to be scored. A nightly run only sees what is new — roughly 20
+postings a day across these feeds, ~16% of which survive stage 2 — so steady
+state is three or four scored postings a night, a few cents a month. Re-scoring
+the whole corpus after a rubric change costs another $1.31, and the Batch API
+would halve it.
 
 `prompt_version` — a hash of the cached prefix — is stored with every score, so
 editing the rubric or the CV is visible in the database instead of silently
