@@ -6,7 +6,7 @@ when you close it. No framework, no build step, no dependency the rest of the
 tool does not already have.
 
 It exists because of one number. The queue shipped cutting at 70 while the
-scorer's real range turned out to be 8-78, so it surfaced 1 posting in 22 that
+scorer's real range turned out to be 3-78, so it surfaced 1 posting in 22 that
 deserved one, and that went unnoticed for two weeks — a threshold is invisible
 in a config file and obvious the moment you can drag it and watch the list and
 the precision move together. Reading a `.md` file tells you what the cut

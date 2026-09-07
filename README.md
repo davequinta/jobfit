@@ -12,13 +12,64 @@ Nothing here is specific to one person. The feed list, stack keywords, title
 exclusions, eligibility phrases and the scoring rubric are all config or plain
 markdown. The defaults are one engineer's and are meant to be replaced.
 
+## What it does
+
+Four commands, run in order, each reading what the last one wrote:
+
+```
+                       cost     what it does
+  ingest    846        free     5 sources, 9 feeds; normalised, deduped, stored raw
+    ↓
+  prefilter 135        free     deterministic rules; every rejection records its reason
+    ↓
+  score     135        $1.31    one structured LLM call each, against your CV
+    ↓
+  queue      45        free     ranked markdown you read, plus a tracking CSV
+```
+
+Those are real numbers from one run, not an illustration. What you end up
+reading is `queue/YYYY-MM-DD.md`: postings best first, each with its score, the
+link, three bullets on why it fits and one to three on why it might not. Half an
+hour of reading instead of a week of it.
+
+## Why it is shaped this way
+
+**The funnel exists for cost, and only the middle costs anything.** Ingest and
+prefilter are free — no model, no tokens. Sending all 846 postings to the model
+would have cost about $8; sending the 135 that survive cheap deterministic rules
+cost $1.31. The rules do the volume, the model does the judgement.
+
+**Every stage reads and writes SQLite, and nothing is chained in memory.** You
+can re-run scoring without re-ingesting, re-run the prefilter after changing a
+rule and see the effect on the whole corpus for free, and re-render the queue at
+a different cut without touching either. This is the difference between a
+pipeline you can tune and a script you rerun from the top and wait.
+
+**Every rejection is recorded with the phrase that caused it.** A filter that
+quietly eats good postings looks exactly like a quiet week. `prefilter_verdicts`
+stores the reason and the matched text for all 711 rejections, so the filter can
+be audited instead of trusted — which is how a rule that claimed 173 of 211
+postings required Go got caught. (`LIKE '%Go%'` matches "going" and "Google".)
+
+**The scorer is measured, not trusted.** 39 postings were hand-labelled blind —
+no model output visible — and the scores compared against them. That measurement
+is the whole reason the tool works at all: it shipped cutting at 70 while the
+scorer's real range was 3–78, surfacing 1 posting in 22 that deserved one. At 25
+it surfaces 13 of 22 and is wrong twice. The numbers, and everything they do not
+support, are in [evals/results.md](evals/results.md).
+
+**It never applies for you.** Auto-submitted applications get 1–3% response
+rates and get flagged by ATS platforms as spam. The point is to spend the same
+human effort on 15 good applications instead of 150 bad ones — so the output is
+a thing you read, and every application stays a decision you make.
+
 ## Status — read this before installing
 
 | Stage | State |
 |---|---|
 | 1 — ingest | **Working.** 846 postings from 5 sources on real data. |
 | 2 — prefilter | **Working.** Cuts 846 to 135. |
-| 3 — score | **Working.** 135 postings scored against real feed data on 2026-08-23 (`claude-sonnet-5`, synchronous path). Prompt caching confirmed live: 653,952 cache-read tokens against 170,838 uncached input tokens. Whether the scores are any *good* is unmeasured — see the Evals row. |
+| 3 — score | **Working.** 135 postings scored against real feed data on 2026-08-23 (`claude-sonnet-5`, synchronous path). Prompt caching confirmed live: 653,952 cache-read tokens against 170,838 uncached input tokens, and the run cost $1.31. |
 | Queue output | **Working.** Writes `queue/YYYY-MM-DD.md` and appends to `out/applications.csv`. |
 | Local UI | **Working.** `jobfit ui` serves one page on 127.0.0.1: the run, a threshold you can drag with precision and recall moving under it, and the prefilter rules with a live preview of what they would cut. |
 | 4 — draft | **Dropped**, not pending. Cut on 2026-09-07 rather than left as a stub — the reasoning is in SPEC.md. |
@@ -128,8 +179,8 @@ find a `profile/` directory when you browse this repo.
 src/jobfit/
   One stage per file          ingest.py  prefilter.py  score.py  queue.py
   Shared, not a stage         sources.py  http.py  db.py  runtime.py
-  Entry points                cli.py  cvimport.py  evals.py
-  Data                        schema.sql  templates/
+  Not stages                  cli.py  cvimport.py  evals.py  ui.py
+  Data                        schema.sql  templates/  templates/ui.html
 
 Created by you, gitignored
   config.yaml   profile/stack.yaml   profile/cv.md          ← jobfit init
@@ -446,7 +497,7 @@ mixing two generations of results.
 
 ```bash
 jobfit queue                      # threshold 25 by default — see evals/results.md
-jobfit queue --threshold 60       # widen it
+jobfit queue --threshold 40       # narrow it for one run
 jobfit queue --day 2026-08-22     # re-render a specific day
 ```
 
@@ -456,7 +507,7 @@ Two artifacts, neither of which touches the database — re-running is always sa
 in about thirty minutes. Every entry carries what a skip-or-apply decision needs:
 
 ```markdown
-## 88 — Acme — Senior Full Stack Engineer
+## 68 — Acme — Senior Full Stack Engineer
 
 https://example.com/jobs/1
 
@@ -498,7 +549,7 @@ SELECT (SELECT count(*) FROM postings) AS ingested,
        (SELECT count(*) FROM prefilter_verdicts WHERE rejected_reason IS NULL) AS survived,
        (SELECT count(*) FROM scores) AS scored,
        (SELECT count(*) FROM scores WHERE fit_score >= 25) AS queued;
--- 846 | 135 | 39 | 2
+-- 846 | 135 | 135 | 45
 
 -- Why a posting was thrown away, with the exact phrase that did it
 SELECT p.title, v.rejected_reason, v.detail
@@ -525,7 +576,7 @@ Everything you would tune is config or markdown. None of it is code.
 | How old a posting can be | `profile/stack.yaml` → `max_age_days` |
 | What the scorer rewards | `prompts/score_system.md` — the rubric weights |
 | Who you are | `profile/cv.md` |
-| The queue cutoff | `jobfit queue --threshold N` |
+| The queue cutoff | `jobfit ui` and *Save as default*, or `threshold:` in `config.yaml`. `--threshold N` overrides both for one run. |
 
 **Change one thing at a time.** The rubric and the threshold both move which
 postings surface; changing both at once means you cannot tell which one did it.
@@ -544,7 +595,8 @@ old and new scores never silently mix.
 | `prefilter` exits 1 with `cut ratio outside the band` | The filter is eating too much or too little. Query `prefilter_verdicts` grouped by `rejected_reason` to see which rule is responsible. |
 | `score` says `is missing — run jobfit init` | You are in a directory that was never initialised, or you deleted a scaffolded file. |
 | `score` fails on authentication | `ANTHROPIC_API_KEY` is unset or wrong. A Claude Code or Claude.ai subscription is **not** API access. |
-| Queue is empty but postings scored | Nothing cleared the threshold. Check the prefilter first — an over-aggressive filter looks identical to a quiet day. |
+| Queue is empty but postings scored | Nothing cleared the threshold. Open `jobfit ui` and drag it: if the scores cluster well below the cut, the cut is wrong, not the day. This exact failure shipped for two weeks. |
+| The page says every posting is stale | Your corpus is older than `max_age_days`. Re-run `jobfit ingest`. |
 | `sum(cache_read_tokens)` is 0 | Prompt caching broke. Run the tests: three of them exist specifically to catch this. |
 
 ## Development
@@ -667,7 +719,7 @@ jobfit ui --port 9000 --no-browser
 ```
 
 It exists because of one number. The queue shipped cutting at 70 while the
-scorer's real range turned out to be 8–78, so it surfaced 1 posting in 22 that
+scorer's real range turned out to be 3–78, so it surfaced 1 posting in 22 that
 deserved one — and that sat unnoticed for two weeks. A threshold is invisible in
 a config file and obvious the moment you can drag it and watch the list and the
 precision move together.

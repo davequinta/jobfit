@@ -249,7 +249,7 @@ get cut under time pressure. Do not cut it.
 **No web framework. No Docker. No cloud deploy.** Runs from `cron` on my laptop.
 
 *Amended 2026-09-07.* "No frontend" held until a number proved it wrong. The
-queue shipped cutting at 70 against a scorer whose real range was 8-78, and that
+queue shipped cutting at 70 against a scorer whose real range was 3-78, and that
 sat unnoticed for two weeks because a threshold in a config file is invisible.
 `jobfit ui` serves one page from the standard library on 127.0.0.1 — no
 framework, no dependency, no deploy, gone when you close it. The rule it was
