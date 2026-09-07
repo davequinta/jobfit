@@ -60,14 +60,25 @@ The funnel shape matters for cost. Never send all 400 postings to the model.
 
 Pull postings from feeds. Normalize to a common schema. Dedupe. Store raw.
 
-Sources (implement in this order, ship with whatever works by day 3):
+Sources. *Amended 2026-09-07 to record what actually shipped.*
 
-| Source | Access | Notes |
+| Source | Access | Status |
 |---|---|---|
-| Remotive | Public JSON API | Easiest, start here |
-| We Work Remotely | RSS per category | `remote-programming-jobs` feed |
-| Hacker News "Who is Hiring" | Algolia HN API | Monthly thread, parse top-level comments |
-| Working Nomads | RSS | Lower signal, add last |
+| Remotive | Public JSON API | Shipped |
+| We Work Remotely | RSS, four category feeds | Shipped — the largest contributor |
+| Hacker News "Who is Hiring" | Algolia HN API | Shipped — monthly thread, top-level comments |
+| Get on Board | JSON API | Shipped — LATAM-focused, needs a company lookup per new employer |
+| Remote OK | Public JSON API | Shipped |
+| Working Nomads | RSS | Never built. The five above already produce more volume than the funnel needs. |
+| LinkedIn | — | Dropped before any code: scraping profile data is against their ToS and the account risk is not worth it. |
+
+Five LATAM-focused platforms were assessed on 2026-09-07 and rejected —
+BairesDev, Tecla, Revelo, Mismo, Mappa. BairesDev serves 276KB of HTML with no
+job titles in it and Tecla serves 4.8KB and four scripts, so both need a
+headless browser; Revelo's public job URLs are SEO templates for employers
+rather than openings; Mismo is a consultancy site, not a board. They fail the
+headless-browser rule below. Company ATS boards (Greenhouse, Lever, Ashby)
+expose public JSON and are the direction worth taking instead.
 
 Rules:
 - Respect `robots.txt` and set a real User-Agent with contact info.
@@ -106,7 +117,9 @@ need tuning.
 
 One API call per surviving posting. Structured JSON output.
 
-**Model:** `claude-sonnet-4-6`. Do not use Opus here — the task is classification
+**Model:** `claude-sonnet-5` (shipped; this line said `claude-sonnet-4-6` until
+2026-09-07, while the code had always called Sonnet 5 — it is the current
+generation and cheaper, $2/$10 per MTok against $3/$15). Do not use Opus here — the task is classification
 against an explicit rubric, not open-ended reasoning.
 
 **Prompt structure — this ordering is required for caching to work:**
@@ -251,7 +264,7 @@ protecting against was a hosted dashboard, and that stays out of scope.
 | 1-2 | Ingest + SQLite schema | 200+ real postings in the DB from 2 sources |
 | 2 | Eval set labeled | 40 postings in `evals/labeled.jsonl` |
 | 3-4 | Prefilter + scorer | End-to-end run produces a scored queue |
-| 5 | Eval loop + rubric tuning | Precision > 0.8 logged in `evals/results.md` |
+| 5 | Eval loop + rubric tuning | **Done 2026-09-07** — precision 13 of 15 at threshold 25, logged in `evals/results.md` |
 | 6 | Batch + caching path | Nightly run costs measured and logged |
 | 7 | ~~Draft stage~~ + CSV export | CSV export shipped; the draft stage was dropped — see Stage 4 |
 | 8-10 | README, cleanup, buffer | Repo public |
@@ -285,9 +298,23 @@ November.
 
 ## Constraints
 
-- Cost target: under $5/month for a nightly run. Log actual token spend per run
-  in `out/costs.csv`. If a run costs more than $0.30, something in the funnel is
-  wrong — probably the prefilter letting too much through.
+- Cost target: under $5/month for a nightly run.
+
+  *Measured 2026-09-07, and the guess above was wrong in an instructive way.*
+  Scoring the 846-posting cold-start backlog — 135 survivors — cost **$1.31**,
+  four times the $0.30 ceiling. But the prefilter was not the culprit: it cut
+  84%, inside its band. **Output tokens were 57% of the bill**, 555 per posting,
+  more than every input token combined. Postings-through-the-funnel is the lever
+  the prefilter pulls; tokens-per-verdict is a lever nobody had looked at.
+
+  Steady state is fine: about 20 new postings a day, ~16% surviving stage 2, so
+  three or four scored a night — a few cents a month. The $5 target holds; the
+  per-run ceiling only ever binds on a re-score of the whole corpus.
+
+  No `out/costs.csv`. One measured run is a number in the README, not a time
+  series, and a one-row CSV nothing reads is a file to maintain rather than
+  evidence. If a cost regression ever needs catching, the token counters are
+  already stored on every score row.
 - Respect every source's robots.txt and rate limits. This repo is going to be
   public and read by people who might hire me.
 - Never commit the CV, the profile, or the queue files. `profile/` and `queue/`
