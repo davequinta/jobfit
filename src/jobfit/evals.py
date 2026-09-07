@@ -257,6 +257,16 @@ class StopReview(Exception):
     """Raised by the prompt to stop the review and keep what is already decided."""
 
 
+class GoBack(Exception):
+    """Raised by the prompt to reopen the previous posting.
+
+    Labelling is a criterion being discovered as you go: the rule you settle on
+    at posting nineteen is one you want to apply to posting twelve. Without a
+    way back, the only options are to leave a verdict you no longer believe or
+    to hand-edit the JSONL afterwards.
+    """
+
+
 KEYSTROKES = {"a": "apply", "s": "skip", "b": "borderline"}
 
 
@@ -307,16 +317,27 @@ def review_records(records: list[dict], ask, save) -> int:
     """
     pending = [record for record in records if not record.get("label")]
     decided = 0
-    for position, record in enumerate(pending, start=1):
+    position = 0
+    while position < len(pending):
         try:
-            answer = ask(record, position, len(pending))
+            answer = ask(pending[position], position + 1, len(pending))
         except StopReview:
             break
-        if answer is None:
-            continue          # deferred; a label is never guessed on your behalf
-        record["label"], record["reason"] = answer
-        decided += 1
-        save()
+        except GoBack:
+            if position == 0:
+                continue      # nothing behind the first one; ask it again
+            position -= 1
+            previous = pending[position]
+            if previous.get("label"):
+                previous["label"], previous["reason"] = "", ""
+                decided -= 1
+                save()        # an undo is a change to the file like any other
+            continue
+        if answer is not None:
+            pending[position]["label"], pending[position]["reason"] = answer
+            decided += 1
+            save()
+        position += 1         # None means deferred; a label is never guessed
     return decided
 
 
@@ -325,12 +346,18 @@ def ask_at_terminal(record: dict, position: int, total: int):
     print(format_for_review(record, position, total))
     while True:
         try:
-            answer = input("    [a]pply  [s]kip  [b]orderline  [enter] later  [q]uit: ")
+            answer = input(
+                "    [a]pply  [s]kip  [b]orderline  [u]ndo  [enter] later  [q]uit: ")
         except EOFError:
             raise StopReview from None
         answer = answer.strip().lower()
         if answer in ("q", "quit"):
             raise StopReview
+        if answer in ("u", "undo"):
+            if position == 1:
+                print("    nothing behind this one")
+                continue
+            raise GoBack
         if not answer:
             return None
         if answer in KEYSTROKES:
@@ -339,7 +366,7 @@ def ask_at_terminal(record: dict, position: int, total: int):
             except EOFError:
                 reason = ""
             return KEYSTROKES[answer], reason
-        print("    not one of a, s, b, enter or q")
+        print("    not one of a, s, b, u, enter or q")
 
 
 # --- commands ----------------------------------------------------------------
@@ -419,7 +446,8 @@ def review_command(out: Path) -> int:
         print(f"{out}: every entry is labelled — nothing to review.")
         return 0
 
-    print(f"{pending} postings to label. Enter defers one, q stops and keeps your work.")
+    print(f"{pending} postings to label. u reopens the one before, "
+          "enter defers one, q stops and keeps your work.")
     print("Aim for roughly 15 apply, 15 skip, 10 borderline.")
     decided = review_records(records, ask_at_terminal,
                              save=lambda: write_records(out, records))

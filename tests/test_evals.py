@@ -395,3 +395,41 @@ def test_reviewing_a_fully_labelled_file_has_nothing_to_ask(tmp_path, capsys):
 
     assert code == 0
     assert "nothing to review" in capsys.readouterr().out
+
+
+def test_going_back_reopens_the_previous_posting():
+    """The gap the CLI had: a criterion you refine at posting 19 is worth
+    applying to posting 12, and there was no way back to it."""
+    records = [record(url="https://a"), record(url="https://b")]
+    ask = answers(("apply", "first call"), evals.GoBack(),
+                  ("skip", "changed my mind"), ("apply", ""))
+
+    decided = evals.review_records(records, ask, save=lambda: None)
+
+    assert records[0]["label"] == "skip"
+    assert records[0]["reason"] == "changed my mind"
+    assert records[1]["label"] == "apply"
+    assert decided == 2
+    assert ask.seen == ["https://a", "https://b", "https://a", "https://b"]
+
+
+def test_going_back_clears_the_label_rather_than_leaving_it_standing():
+    """Stepping back and then quitting must not leave the old verdict behind."""
+    records = [record(url="https://a"), record(url="https://b")]
+    ask = answers(("apply", ""), evals.GoBack(), evals.StopReview())
+
+    decided = evals.review_records(records, ask, save=lambda: None)
+
+    assert records[0]["label"] == ""
+    assert decided == 0
+
+
+def test_an_undo_is_written_to_disk_like_any_other_change():
+    records = [record(url="https://a"), record(url="https://b")]
+    saves = []
+    ask = answers(("apply", ""), evals.GoBack(), evals.StopReview())
+
+    evals.review_records(records, ask,
+                         save=lambda: saves.append([r["label"] for r in records]))
+
+    assert saves == [["apply", ""], ["", ""]]

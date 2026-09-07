@@ -551,7 +551,7 @@ old and new scores never silently mix.
 
 ```bash
 pip install -e . && pip install pytest
-pytest                       # 182 tests, no network, no API calls, no tokens
+pytest                       # 185 tests, no network, no API calls, no tokens
 ```
 
 Every test runs offline. The feed parsers are pure functions over recorded
@@ -617,9 +617,12 @@ location, salary, date, the stack keywords stage 2 matched, and an excerpt:
 ```
 
 `--review` prints one posting at a time and takes a single keystroke — `a`,
-`s`, `b`, Enter to defer it, `q` to stop — followed by one line of reason. It
-rewrites the file after every verdict, so quitting halfway keeps what you
-decided and re-running picks up where you left off. Editing the JSONL in an
+`s`, `b`, `u` to reopen the one before, Enter to defer it, `q` to stop —
+followed by one line of reason. It rewrites the file after every verdict, so
+quitting halfway keeps what you decided and re-running picks up where you left
+off. `u` exists because labelling is a criterion being discovered as you go: the
+rule you settle on at posting nineteen is one you want to apply to posting
+twelve, and an undo is written to the file like any other change. Editing the JSONL in an
 editor still works; the reviewer exists because `"label"` sits at character 654
 of a 676-character line, and forty of those is how an eval set quietly does not
 get made.
