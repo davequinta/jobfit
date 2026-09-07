@@ -233,8 +233,14 @@ get cut under time pressure. Do not cut it.
 - `pytest` for the eval harness
 - Config in `config.yaml`, secrets in `.env` (gitignored)
 
-**No web framework. No frontend. No Docker. No cloud deploy.** Runs from `cron`
-on my laptop. If I want a UI later that's a different project.
+**No web framework. No Docker. No cloud deploy.** Runs from `cron` on my laptop.
+
+*Amended 2026-09-07.* "No frontend" held until a number proved it wrong. The
+queue shipped cutting at 70 against a scorer whose real range was 8-78, and that
+sat unnoticed for two weeks because a threshold in a config file is invisible.
+`jobfit ui` serves one page from the standard library on 127.0.0.1 — no
+framework, no dependency, no deploy, gone when you close it. The rule it was
+protecting against was a hosted dashboard, and that stays out of scope.
 
 ---
 
@@ -261,7 +267,7 @@ reads better than a polished demo with no evals.
 Listed because each of these will feel like a good idea around day 5:
 
 - Auto-submitting applications, anywhere, under any conditions
-- A web UI or dashboard
+- A hosted web UI or dashboard. (A local page, `jobfit ui`, is in — see Stack.)
 - Multi-user support, auth, or anything that implies other people using it
 - LinkedIn scraping (against their ToS for profile data, and the account risk is
   not worth it)
