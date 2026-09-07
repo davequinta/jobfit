@@ -547,7 +547,7 @@ old and new scores never silently mix.
 
 ```bash
 pip install -e . && pip install pytest
-pytest                       # 153 tests, no network, no API calls, no tokens
+pytest                       # 168 tests, no network, no API calls, no tokens
 ```
 
 Every test runs offline. The feed parsers are pure functions over recorded
