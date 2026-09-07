@@ -20,6 +20,12 @@ from jobfit import db
 
 LOG_FORMAT = "%(asctime)s %(levelname)-7s %(message)s"
 
+# The score at or above which a posting is worth your attention. Lives here, not
+# in a stage, because the queue cuts on it, the eval measures at it and the
+# scorer's why_not guardrail fires above it — three copies is three chances to
+# drift apart. Set from measurement, not taste: see evals/results.md.
+DEFAULT_THRESHOLD = 25
+
 
 def stage_parser(description: str) -> argparse.ArgumentParser:
     """An argument parser carrying the options every stage accepts."""

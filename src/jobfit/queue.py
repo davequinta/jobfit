@@ -27,8 +27,6 @@ from pathlib import Path
 
 from jobfit import db, runtime
 
-from jobfit import runtime
-
 log = logging.getLogger("jobfit.queue")
 
 QUEUE_DIR = Path("queue")
@@ -40,7 +38,7 @@ CSV_COLUMNS = [
     "applied_date", "contact", "next_action", "next_action_date", "comp_range", "notes",
 ]
 
-DEFAULT_THRESHOLD = 70
+DEFAULT_THRESHOLD = runtime.DEFAULT_THRESHOLD
 
 
 def entries_above(conn: sqlite3.Connection, threshold: int) -> list[dict]:

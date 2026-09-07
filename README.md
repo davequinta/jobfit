@@ -21,12 +21,14 @@ markdown. The defaults are one engineer's and are meant to be replaced.
 | 3 — score | **Working.** 135 postings scored against real feed data on 2026-08-23 (`claude-sonnet-5`, synchronous path). Prompt caching confirmed live: 653,952 cache-read tokens against 170,838 uncached input tokens. Whether the scores are any *good* is unmeasured — see the Evals row. |
 | Queue output | **Working.** Writes `queue/YYYY-MM-DD.md` and appends to `out/applications.csv`. |
 | 4 — draft | **Dropped**, not pending. Cut on 2026-09-07 rather than left as a stub — the reasoning is in SPEC.md. |
-| Evals | **Harness built, unlabelled.** `jobfit label` / `jobfit eval` work; nobody has hand-labelled a set yet, so no precision or recall numbers exist. |
+| Evals | **Measured.** 39 postings hand-labelled; precision 13 of 15, recall 13 of 22 at threshold 25. The numbers and everything they do not support are in [evals/results.md](evals/results.md). |
 
-Being blunt about what that means: the funnel runs end to end and produces a
-queue you can read, but nobody has measured whether the scores are any good.
-Until `evals/results.md` exists, treat the numbers as a starting point to tune,
-not as a verdict.
+Being blunt about what that means: the funnel runs end to end, and the scorer
+has now been measured against 39 hand labels rather than trusted. That
+measurement is what moved the queue threshold from 70 to 25 — at 70 the tool was
+surfacing 1 posting in 22 that deserved one. Read `evals/results.md` before
+quoting any of it: n is 39, the set has no borderline labels, and its base rate
+flatters precision.
 
 ## This is a workflow, not an agent
 
@@ -399,7 +401,7 @@ as a column of zeros instead of looking like a normal run.
 The output schema requires honest negatives. A scorer that only rationalises
 matches is useless — you are trying to reject 90% of what you read, and
 `why_not` is the field that does that work. When the model returns an empty
-`why_not` on a score of 70 or above, the score stands but confidence is
+`why_not` on a posting it scores at or above the threshold, the score stands but confidence is
 downgraded to `low` and the event is logged.
 
 ### What a run costs
@@ -441,7 +443,7 @@ mixing two generations of results.
 ## The queue
 
 ```bash
-jobfit queue                      # threshold 70 by default
+jobfit queue                      # threshold 25 by default — see evals/results.md
 jobfit queue --threshold 60       # widen it
 jobfit queue --day 2026-08-22     # re-render a specific day
 ```
@@ -493,7 +495,7 @@ hidden. `sqlite3 data/jobfit.db` and:
 SELECT (SELECT count(*) FROM postings) AS ingested,
        (SELECT count(*) FROM prefilter_verdicts WHERE rejected_reason IS NULL) AS survived,
        (SELECT count(*) FROM scores) AS scored,
-       (SELECT count(*) FROM scores WHERE fit_score >= 70) AS queued;
+       (SELECT count(*) FROM scores WHERE fit_score >= 25) AS queued;
 -- 846 | 135 | 39 | 2
 
 -- Why a posting was thrown away, with the exact phrase that did it

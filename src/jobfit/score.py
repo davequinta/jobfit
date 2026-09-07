@@ -38,8 +38,6 @@ from pydantic import BaseModel, Field
 
 from jobfit import db, runtime
 
-from jobfit import runtime
-
 log = logging.getLogger("jobfit.score")
 
 TEMPLATES = Path(__file__).parent / "templates"
@@ -177,7 +175,7 @@ def apply_guardrails(score: Score) -> Score:
     it returns nothing anyway on a posting it rates highly, the result is not
     trustworthy — so the score stands but the confidence does not.
     """
-    if score.why_not or score.fit_score < 70:
+    if score.why_not or score.fit_score < runtime.DEFAULT_THRESHOLD:
         return score
     log.warning(
         "empty why_not on a score of %d — downgrading confidence to low", score.fit_score
