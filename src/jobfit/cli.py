@@ -7,6 +7,7 @@ logic that belongs in a stage.
 
 from __future__ import annotations
 
+import argparse
 import shutil
 import sys
 from pathlib import Path
@@ -57,7 +58,17 @@ def cmd_init(argv: list[str]) -> int:
     Never overwrites: someone re-running `init` after tuning their rules for a
     week should not lose them, and a scaffolding command is exactly the kind of
     thing people re-run by accident.
+
+    It parses its arguments even though it takes none, because it used to ignore
+    them — and `jobfit init --help`, typed to find out what the command does
+    before running it, scaffolded the directory instead of answering.
     """
+    argparse.ArgumentParser(
+        prog="jobfit init",
+        description="Scaffold config.yaml, profile/, prompts/ and .env into the "
+                    "current directory. Never overwrites a file that exists.",
+    ).parse_args(argv)
+
     written, kept = [], []
     for template, destination, description in SCAFFOLD:
         target = Path(destination)

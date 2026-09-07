@@ -118,3 +118,28 @@ def test_every_stage_builds_its_argument_parser(command, capsys):
 
     assert exit_info.value.code == 0
     assert "--config" in capsys.readouterr().out
+
+
+def test_init_help_explains_itself_instead_of_scaffolding(tmp_path, monkeypatch, capsys):
+    """`--help` is what you type to find out what a command does before running
+    it. `init` used to ignore its arguments and write files anyway, which is the
+    one command where that is least forgivable — it creates the directory
+    layout."""
+    monkeypatch.chdir(tmp_path)
+
+    # argparse exits 0 on --help, which is what every other command does too.
+    with pytest.raises(SystemExit) as exit:
+        cli.main(["init", "--help"])
+
+    assert exit.value.code == 0
+    assert "scaffold" in capsys.readouterr().out.lower()
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_init_rejects_an_unknown_flag_rather_than_ignoring_it(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+
+    with pytest.raises(SystemExit):
+        cli.main(["init", "--into", "somewhere"])
+
+    assert list(tmp_path.iterdir()) == []
