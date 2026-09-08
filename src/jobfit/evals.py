@@ -296,7 +296,7 @@ def format_for_review(record: dict, position: int, total: int) -> str:
     stack = ", ".join(record.get("stack_seen") or []) or "none matched"
     excerpt = textwrap.fill(record.get("excerpt", ""), width=76,
                             initial_indent="    ", subsequent_indent="    ")
-    return "\n".join([
+    lines = [
         "",
         f"[{position}/{total}]  {record['company']} — {record['title']}",
         f"    {record['location']} · {record['salary']} · posted {record['posted'] or 'unknown'}",
@@ -305,17 +305,30 @@ def format_for_review(record: dict, position: int, total: int) -> str:
         "",
         excerpt,
         "",
-    ])
+    ]
+    if record.get("label"):
+        # Your own earlier verdict, which is not the model's and cannot anchor
+        # you to it. Shown so revisiting a call means changing it knowingly.
+        reason = f" — {record['reason']}" if record.get("reason") else ""
+        lines.append(f"    you said: {record['label']}{reason}")
+        lines.append("")
+    return "\n".join(lines)
 
 
-def review_records(records: list[dict], ask, save) -> int:
+def review_records(records: list[dict], ask, save, include_labelled: bool = False) -> int:
     """Ask for a verdict on every record that has no label yet.
 
     Saves after each decision rather than at the end. Labelling forty postings
     takes half an hour, and a crash at posting thirty that loses the first
     twenty-nine is how this step gets abandoned.
+
+    `include_labelled` walks the whole file instead, verdicts and all. `u`
+    only reaches backwards inside one session, and a call you want to change a
+    day later needs a way in from the front. Deferring one of those keeps the
+    verdict rather than clearing it: enter means "leave it alone".
     """
-    pending = [record for record in records if not record.get("label")]
+    pending = [record for record in records
+               if include_labelled or not record.get("label")]
     decided = 0
     position = 0
     while position < len(pending):
@@ -388,11 +401,13 @@ def label_main(argv: list[str] | None = None) -> int:
                         help="refresh unlabelled entries with full context, keeping your labels")
     parser.add_argument("--review", action="store_true",
                         help="label the collected postings one at a time in the terminal")
+    parser.add_argument("--all", action="store_true",
+                        help="with --review, revisit verdicts you have already given")
     args = parser.parse_args(argv)
 
     out = Path(args.out)
     if args.review:
-        return review_command(out)
+        return review_command(out, include_labelled=args.all)
 
     already = set(load_labels(out)) if out.is_file() else set()
     conn = _open_db(args)
@@ -429,7 +444,7 @@ def label_main(argv: list[str] | None = None) -> int:
     return 0
 
 
-def review_command(out: Path) -> int:
+def review_command(out: Path, include_labelled: bool = False) -> int:
     """Walk the unlabelled entries in the terminal, saving after each verdict.
 
     Collecting postings and judging them are separate jobs: the first needs the
@@ -441,16 +456,20 @@ def review_command(out: Path) -> int:
         return 2
 
     records = read_records(out)
-    pending = sum(1 for record in records if not record.get("label"))
+    pending = sum(1 for record in records
+                  if include_labelled or not record.get("label"))
     if not pending:
-        print(f"{out}: every entry is labelled — nothing to review.")
+        print(f"{out}: every entry is labelled — nothing to review. "
+              "Use --all to revisit the verdicts you gave.")
         return 0
 
-    print(f"{pending} postings to label. u reopens the one before, "
-          "enter defers one, q stops and keeps your work.")
-    print("Aim for roughly 15 apply, 15 skip, 10 borderline.")
+    print(f"{pending} postings to review. u reopens the one before, "
+          "enter leaves one as it is, q stops and keeps your work.")
+    if not include_labelled:
+        print("Aim for roughly 15 apply, 15 skip, 10 borderline.")
     decided = review_records(records, ask_at_terminal,
-                             save=lambda: write_records(out, records))
+                             save=lambda: write_records(out, records),
+                             include_labelled=include_labelled)
 
     left = sum(1 for record in records if not record.get("label"))
     print(f"\n{decided} labelled this session; {left} still unlabelled in {out}.")

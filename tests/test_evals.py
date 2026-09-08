@@ -433,3 +433,41 @@ def test_an_undo_is_written_to_disk_like_any_other_change():
                          save=lambda: saves.append([r["label"] for r in records]))
 
     assert saves == [["apply", ""], ["", ""]]
+
+
+# --- revisiting a verdict you already gave ------------------------------------
+
+
+def test_reviewing_everything_revisits_the_labels_already_made():
+    """`u` only reaches backwards within one session. A verdict you want to
+    change tomorrow needs a way in from the front."""
+    records = [record(url="https://done", label="apply"), record(url="https://todo")]
+    ask = answers(("skip", "reconsidered"), ("apply", ""))
+
+    evals.review_records(records, ask, save=lambda: None, include_labelled=True)
+
+    assert ask.seen == ["https://done", "https://todo"]
+    assert records[0]["label"] == "skip"
+    assert records[0]["reason"] == "reconsidered"
+
+
+def test_deferring_a_posting_you_already_judged_keeps_that_judgement():
+    """Enter means "leave it alone", which for an existing verdict means keep
+    it — not clear it."""
+    records = [record(url="https://done", label="apply", reason="strong stack")]
+
+    evals.review_records(records, answers(None), save=lambda: None,
+                         include_labelled=True)
+
+    assert records[0]["label"] == "apply"
+    assert records[0]["reason"] == "strong stack"
+
+
+def test_the_screen_shows_the_verdict_you_gave_before_but_never_the_models():
+    screen = evals.format_for_review(
+        record(label="apply", reason="strong stack overlap", fit_score=78),
+        position=1, total=1)
+
+    assert "apply" in screen
+    assert "strong stack overlap" in screen
+    assert "78" not in screen

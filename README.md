@@ -603,7 +603,7 @@ old and new scores never silently mix.
 
 ```bash
 pip install -e . && pip install pytest
-pytest                       # 187 tests, no network, no API calls, no tokens
+pytest                       # 190 tests, no network, no API calls, no tokens
 ```
 
 Every test runs offline. The feed parsers are pure functions over recorded
@@ -652,6 +652,7 @@ The part that separates this from a demo, and the part most likely to get cut.
 ```bash
 jobfit label                  # collects unlabelled postings into evals/labeled.jsonl
 jobfit label --review         # judge them one at a time, in the terminal
+jobfit label --review --all   # revisit verdicts you already gave
 jobfit label --rewrite        # refresh unlabelled entries, keeping labels you have made
 jobfit eval                   # offline — measures stored scores against your labels
 jobfit eval --note "widened stack aliases"   # also logs a row to evals/results.md
@@ -674,7 +675,11 @@ followed by one line of reason. It rewrites the file after every verdict, so
 quitting halfway keeps what you decided and re-running picks up where you left
 off. `u` exists because labelling is a criterion being discovered as you go: the
 rule you settle on at posting nineteen is one you want to apply to posting
-twelve, and an undo is written to the file like any other change. Editing the JSONL in an
+twelve, and an undo is written to the file like any other change. `u` only
+reaches backwards inside one session; `--all` walks the whole file, verdicts
+included, showing what you said before so a call you want to change a day later
+has a way in from the front. Enter leaves an existing verdict alone rather than
+clearing it. Editing the JSONL in an
 editor still works; the reviewer exists because `"label"` sits at character 654
 of a 676-character line, and forty of those is how an eval set quietly does not
 get made.
