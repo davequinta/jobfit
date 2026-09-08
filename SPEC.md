@@ -72,13 +72,26 @@ Sources. *Amended 2026-09-07 to record what actually shipped.*
 | Working Nomads | RSS | Never built. The five above already produce more volume than the funnel needs. |
 | LinkedIn | — | Dropped before any code: scraping profile data is against their ToS and the account risk is not worth it. |
 
-Five LATAM-focused platforms were assessed on 2026-09-07 and rejected —
-BairesDev, Tecla, Revelo, Mismo, Mappa. BairesDev serves 276KB of HTML with no
-job titles in it and Tecla serves 4.8KB and four scripts, so both need a
-headless browser; Revelo's public job URLs are SEO templates for employers
-rather than openings; Mismo is a consultancy site, not a board. They fail the
-headless-browser rule below. Company ATS boards (Greenhouse, Lever, Ashby)
-expose public JSON and are the direction worth taking instead.
+Six LATAM-focused platforms were assessed on 2026-09-07/08 and rejected —
+Torre, BairesDev, Tecla, Revelo, Mismo, Mappa — for two different reasons.
+
+Torre is the one worth recording. Its `robots.txt` allows `/search/jobs$` and
+disallows `/search/jobs?*`: the landing page yes, every actual search no. It also
+runs JSON hosts that serve no `robots.txt`, which this repo's evaluator would
+treat as permission — and that is exactly why they must not be used. Fetching
+through an undocumented internal endpoint what `robots.txt` forbids on the web
+path is the same act with a different transport. The bar this project already
+set with Remotive is a *documented* public API whose terms grant access; Torre
+publishes none.
+
+The other five fail the headless-browser rule below. BairesDev serves 276KB of
+HTML with no job titles in it and Tecla 4.8KB and four scripts, so both need a
+browser; Revelo's public job URLs are SEO templates for employers rather than
+openings; Mismo is a consultancy site, not a board; the Mappa domain assessed
+turned out to be an unrelated e-commerce site.
+
+Company ATS boards (Greenhouse, Lever, Ashby) expose public JSON per employer
+and are the direction worth taking instead. Tracked in issue #1.
 
 Rules:
 - Respect `robots.txt` and set a real User-Agent with contact info.
