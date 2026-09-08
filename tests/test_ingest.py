@@ -359,3 +359,15 @@ def test_the_same_title_at_a_different_source_is_kept(conn):
                           run_id, NOW)
 
     assert result.inserted == 2
+
+
+def test_seeing_the_same_url_again_is_not_reported_as_a_republish(conn):
+    """An ordinary second sighting is not news. Only a genuinely new URL for a
+    job already stored is, or every nightly run files hundreds of issues."""
+    run_id = ingest.start_run(conn, NOW)
+    ingest.store(conn, [posting(url="https://wwr/a")], run_id, NOW)
+
+    result = ingest.store(conn, [posting(url="https://wwr/a")], run_id, NOW)
+
+    assert (result.inserted, result.duplicates) == (0, 1)
+    assert result.republished == []

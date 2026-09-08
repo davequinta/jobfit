@@ -336,3 +336,46 @@ def test_rejects_a_manager_title_with_no_engineering_marker():
 )
 def test_keeps_manager_titles_on_the_engineering_track(title):
     assert prefilter.evaluate(posting(title=title), PROFILE, NOW).rejected_reason is None
+
+
+# --- the band judges the rules, not the size of the archive -------------------
+
+
+def test_the_cut_band_ignores_postings_the_feeds_no_longer_carry(conn):
+    """The database keeps everything it has ever seen, and a posting from two
+    months ago is stale forever. Counting those makes the cut ratio climb toward
+    100% as the archive grows, until the band fails on every run no matter how
+    good the rules are. It judges what the feeds are offering now.
+    """
+    old_run = ingest.start_run(conn, "2026-06-01T09:00:00+00:00")
+    archived = sources.parse_wwr(
+        (Path(__file__).parent / "fixtures" / "wwr_ok.rss").read_bytes(),
+        "https://weworkremotely.com/categories/remote-programming-jobs.rss",
+        "weworkremotely",
+    ).postings
+    ingest.store(conn, archived, old_run, "2026-06-01T09:00:00+00:00")
+
+    # A later ingest that carried nothing the old one did.
+    ingest.start_run(conn, NOW)
+
+    summary = prefilter.run(conn, PROFILE, NOW)
+
+    assert summary.evaluated == 3          # everything still gets a verdict
+    assert summary.live_evaluated == 0     # but none of it is on offer today
+    assert summary.live_cut_ratio == 0.0
+
+
+def test_with_no_ingest_run_recorded_the_band_falls_back_to_everything(conn):
+    """A database built by hand, or by a test, still gets judged."""
+    run_id = ingest.start_run(conn, NOW)
+    stored = sources.parse_wwr(
+        (Path(__file__).parent / "fixtures" / "wwr_ok.rss").read_bytes(),
+        "https://weworkremotely.com/categories/remote-programming-jobs.rss",
+        "weworkremotely",
+    ).postings
+    ingest.store(conn, stored, run_id, NOW)
+
+    summary = prefilter.run(conn, PROFILE, NOW)
+
+    assert summary.live_evaluated == 3
+    assert summary.live_cut_ratio == summary.cut_ratio

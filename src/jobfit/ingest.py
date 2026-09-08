@@ -158,10 +158,13 @@ def store(conn: sqlite3.Connection, postings: list[Posting], run_id: int, now: s
     title instead is a judgement — two roles really can share a title — so
     every merge is reported rather than made quietly.
     """
+    stored_rows = conn.execute(
+        "SELECT dedupe_key, source, company, title, url FROM postings").fetchall()
+    known_keys = {row["dedupe_key"] for row in stored_rows}
     known = {
         (row["source"], normalize_field(row["company"]), normalize_field(row["title"])):
             row["url"]
-        for row in conn.execute("SELECT source, company, title, url FROM postings")
+        for row in stored_rows
     }
 
     inserted = 0
@@ -169,7 +172,10 @@ def store(conn: sqlite3.Connection, postings: list[Posting], run_id: int, now: s
     for posting in postings:
         republish = (posting.source, normalize_field(posting.company),
                      normalize_field(posting.title))
-        if republish in known:
+        # Only a new URL for a job already stored is news. The same URL seen
+        # again is an ordinary second sighting, and reporting those would file
+        # hundreds of issues on every run.
+        if posting.dedupe_key not in known_keys and republish in known:
             republished.append(Issue(
                 posting.source, posting.feed_url, "republished",
                 f"{posting.company} — {posting.title}: {posting.url} is already "
@@ -211,6 +217,7 @@ def store(conn: sqlite3.Connection, postings: list[Posting], run_id: int, now: s
             )
         if cursor.rowcount == 1:
             known[republish] = posting.url
+            known_keys.add(posting.dedupe_key)
     conn.commit()
     return StoreResult(inserted=inserted, duplicates=len(postings) - inserted,
                        republished=republished)

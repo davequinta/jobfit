@@ -27,7 +27,9 @@ Four commands, run in order, each reading what the last one wrote:
   queue      45        free     ranked markdown you read, plus a tracking CSV
 ```
 
-Those are real numbers from one run, not an illustration. What you end up
+Those are real numbers from the run of 2026-08-23, measured end to end, not an
+illustration. The corpus has grown since — 1,266 postings stored, 176 surviving
+stage 2 — and is waiting on a re-score under the current rubric. What you end up
 reading is `queue/YYYY-MM-DD.md`: postings best first, each with its score, the
 link, three bullets on why it fits and one to three on why it might not. Half an
 hour of reading instead of a week of it.
@@ -366,16 +368,17 @@ Deterministic rules, no network, no model, no cost. Reads `postings`, writes
 `prefilter_verdicts`, touches nothing else — so it can be re-run against the
 same corpus after every rule change without re-ingesting.
 
-On the first real corpus:
+On the real corpus, after two months of accumulation:
 
 ```
-  846  postings evaluated
- -516  stale
- -112  no_stack_overlap
-  -74  title_excluded
-   -6  junior
-   -3  location_ineligible
-  135  survive  (84% cut)
+ 1266  postings evaluated
+ -851  stale
+ -173  no_stack_overlap
+  -55  title_excluded
+   -7  location_ineligible
+   -4  junior
+  176  survive  (86% cut)
+        of the 792 the feeds still carry, 176 survive (78% cut) — this is what the band judges
 ```
 
 Rules run cheapest-to-verify first, and the first one that fires is the one
@@ -383,6 +386,15 @@ recorded, so auditing a rejection starts with the reason that takes the least
 effort to confirm by eye. The run exits non-zero if the cut falls outside 50–85%:
 below that the funnel is not paying for itself, above it the filter is probably
 eating good postings.
+
+**The band judges what the feeds are still carrying, not the archive.** The
+database keeps every posting it has ever seen, and one from two months ago is
+stale forever. Counting those makes the cut ratio climb toward 100% as the
+archive grows, until the check fails on every run however good the rules are —
+which is exactly what it started doing at 86%. Measured against the 792 postings
+the last ingest actually saw, the same rules cut 78%, comfortably inside the
+band. Both numbers are printed, because the total is the honest description of
+the database and the live figure is the one that says anything about the rules.
 
 `stale` dominating is partly an artifact of a first run — RSS category feeds
 carry months of backlog — and partly a real mismatch worth knowing about. The
@@ -621,7 +633,7 @@ old and new scores never silently mix.
 
 ```bash
 pip install -e . && pip install pytest
-pytest                       # 198 tests, no network, no API calls, no tokens
+pytest                       # 201 tests, no network, no API calls, no tokens
 ```
 
 Every test runs offline. The feed parsers are pure functions over recorded

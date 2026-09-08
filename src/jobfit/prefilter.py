@@ -65,10 +65,23 @@ class RunSummary:
     evaluated: int
     survived: int
     by_reason: dict[str, int]
+    live_evaluated: int = 0
+    live_survived: int = 0
 
     @property
     def cut_ratio(self) -> float:
         return 0.0 if not self.evaluated else 1 - self.survived / self.evaluated
+
+    @property
+    def live_cut_ratio(self) -> float:
+        """The cut over what the feeds are still carrying.
+
+        The database keeps every posting it has ever seen, and one from two
+        months ago is stale forever. Counting those makes `cut_ratio` climb
+        toward 100% as the archive grows, until the band below fails on every
+        run however good the rules are. The band judges this instead.
+        """
+        return 0.0 if not self.live_evaluated else 1 - self.live_survived / self.live_evaluated
 
 
 # --- matching ----------------------------------------------------------------
@@ -180,17 +193,27 @@ def _location_signal(profile: Profile, location: str, body: str) -> str | None:
 def run(conn: sqlite3.Connection, profile: Profile, now: str) -> RunSummary:
     """Evaluate every stored posting. Safe to re-run; verdicts are replaced."""
     postings = conn.execute(
-        "SELECT id, title, description_text, location_raw, published_at FROM postings"
+        "SELECT id, title, description_text, location_raw, published_at, last_seen_at "
+        "FROM postings"
     ).fetchall()
+
+    latest_run = conn.execute(
+        "SELECT started_at FROM ingest_runs ORDER BY id DESC LIMIT 1").fetchone()
+    # No run recorded means a database built by hand; judge all of it.
+    live_since = latest_run["started_at"] if latest_run else ""
 
     by_reason: dict[str, int] = {}
     survived = 0
+    live_evaluated = live_survived = 0
     for posting in postings:
+        live = posting["last_seen_at"] >= live_since
+        live_evaluated += live
         verdict = evaluate(posting, profile, now)
         if verdict.rejected_reason:
             by_reason[verdict.rejected_reason] = by_reason.get(verdict.rejected_reason, 0) + 1
         else:
             survived += 1
+            live_survived += live
         conn.execute(
             """INSERT INTO prefilter_verdicts
                    (posting_id, rejected_reason, detail, stack_hits_json, evaluated_at)
@@ -204,7 +227,8 @@ def run(conn: sqlite3.Connection, profile: Profile, now: str) -> RunSummary:
              json.dumps(verdict.stack_hits), now),
         )
     conn.commit()
-    return RunSummary(evaluated=len(postings), survived=survived, by_reason=by_reason)
+    return RunSummary(evaluated=len(postings), survived=survived, by_reason=by_reason,
+                      live_evaluated=live_evaluated, live_survived=live_survived)
 
 
 # --- config and CLI ----------------------------------------------------------
@@ -227,6 +251,11 @@ def report(summary: RunSummary) -> str:
     for reason, count in sorted(summary.by_reason.items(), key=lambda kv: -kv[1]):
         lines.append(f"{-count:>5}  {reason}")
     lines.append(f"{summary.survived:>5}  survive  ({summary.cut_ratio:.0%} cut)")
+    if summary.live_evaluated != summary.evaluated:
+        lines.append(
+            f"        of the {summary.live_evaluated} the feeds still carry, "
+            f"{summary.live_survived} survive ({summary.live_cut_ratio:.0%} cut) "
+            "— this is what the band judges")
     return "\n".join(lines)
 
 
@@ -247,10 +276,10 @@ def main(argv: list[str] | None = None) -> int:
 
     # The SPEC's own tripwire: a filter outside this band is mistuned, and the
     # cost of finding that out later is either wasted tokens or lost postings.
-    if summary.evaluated and not MIN_CUT_RATIO <= summary.cut_ratio <= MAX_CUT_RATIO:
+    if summary.live_evaluated and not MIN_CUT_RATIO <= summary.live_cut_ratio <= MAX_CUT_RATIO:
         log.error(
             "cut ratio %.0f%% is outside the %.0f–%.0f%% band — the rules need tuning",
-            summary.cut_ratio * 100, MIN_CUT_RATIO * 100, MAX_CUT_RATIO * 100,
+            summary.live_cut_ratio * 100, MIN_CUT_RATIO * 100, MAX_CUT_RATIO * 100,
         )
         return 1
     return 0
