@@ -69,13 +69,13 @@ a thing you read, and every application stays a decision you make.
 
 | Stage | State |
 |---|---|
-| 1 — ingest | **Working.** 846 postings from 5 sources on real data. |
-| 2 — prefilter | **Working.** Cuts 846 to 135. |
-| 3 — score | **Working.** 135 postings scored against real feed data on 2026-08-23 (`claude-sonnet-5`, synchronous path). Prompt caching confirmed live: 653,952 cache-read tokens against 170,838 uncached input tokens, and the run cost $1.31. |
+| 1 — ingest | **Working.** 1,266 postings stored from 5 sources on real data. |
+| 2 — prefilter | **Working.** 176 survive; 78% cut over what the feeds still carry. |
+| 3 — score | **Working, and owed a re-run.** 135 postings scored on 2026-08-23 (`claude-sonnet-5`, synchronous path); caching confirmed live at 653,952 cache-read tokens against 170,838 uncached, $1.31 for the run. The rubric has changed since, so those 135 and 41 newer ones — 176 — are pending. Stage 3 knows: the rubric version is its cache key. |
 | Queue output | **Working.** Writes `queue/YYYY-MM-DD.md` and appends to `out/applications.csv`. |
 | Local UI | **Working.** `jobfit ui` serves one page on 127.0.0.1: the run, a threshold you can drag with precision and recall moving under it, and the prefilter rules with a live preview of what they would cut. |
 | 4 — draft | **Dropped**, not pending. Cut on 2026-09-07 rather than left as a stub — the reasoning is in SPEC.md. |
-| Evals | **Measured.** 39 postings hand-labelled; precision 13 of 15, recall 13 of 22 at threshold 25. The numbers and everything they do not support are in [evals/results.md](evals/results.md). |
+| Evals | **Measured once.** 39 postings hand-labelled; precision 13 of 15, recall 13 of 22 at threshold 25 — under the *previous* rubric. The current one is unmeasured until the re-score above. Both, and everything the numbers do not support, are in [evals/results.md](evals/results.md). |
 
 Being blunt about what that means: the funnel runs end to end, and the scorer
 has now been measured against 39 hand labels rather than trusted. That
@@ -579,7 +579,7 @@ SELECT (SELECT count(*) FROM postings) AS ingested,
        (SELECT count(*) FROM prefilter_verdicts WHERE rejected_reason IS NULL) AS survived,
        (SELECT count(*) FROM scores) AS scored,
        (SELECT count(*) FROM scores WHERE fit_score >= 25) AS queued;
--- 846 | 135 | 135 | 45
+-- 1266 | 176 | 135 | 45
 
 -- Why a posting was thrown away, with the exact phrase that did it
 SELECT p.title, v.rejected_reason, v.detail
