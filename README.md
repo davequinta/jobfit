@@ -424,7 +424,9 @@ edit rather than a code change.
 ## Stage 3 — score
 
 ```bash
+jobfit score                # scores what this rubric has not judged yet
 jobfit score --limit 5      # start small; this one costs money
+jobfit score --rescore      # judge them all again, and pay again
 ```
 
 One structured call per posting against the rubric in
@@ -493,11 +495,17 @@ much JSON the rubric asks for, not how many postings reach the model — which i
 the opposite of where the funnel's design attention goes.
 
 $1.31 was a cold start: the first ingest pulled a backlog of 846 postings and
-135 survived to be scored. A nightly run only sees what is new — roughly 20
-postings a day across these feeds, ~16% of which survive stage 2 — so steady
-state is three or four scored postings a night, a few cents a month. Re-scoring
-the whole corpus after a rubric change costs another $1.31, and the Batch API
-would halve it.
+135 survived to be scored. A nightly run only pays for what it has not already
+judged — **the rubric version is the cache key**. A posting already scored under
+the current rubric is skipped, because the same posting and the same rubric
+produce the same verdict and buying it again is pure waste. Change the rubric
+and every posting comes back automatically, which is also what stops two
+generations of verdict from mixing in one eval.
+
+So steady state is roughly 20 new postings a day, ~16% surviving stage 2 —
+three or four scored a night, a few cents a month. Re-scoring the whole corpus
+after a rubric change costs another $1.31; `--rescore` forces it without one,
+and the Batch API would halve either.
 
 `prompt_version` — a hash of the cached prefix — is stored with every score, so
 editing the rubric or the CV is visible in the database instead of silently
@@ -613,7 +621,7 @@ old and new scores never silently mix.
 
 ```bash
 pip install -e . && pip install pytest
-pytest                       # 194 tests, no network, no API calls, no tokens
+pytest                       # 198 tests, no network, no API calls, no tokens
 ```
 
 Every test runs offline. The feed parsers are pure functions over recorded

@@ -344,3 +344,63 @@ def test_a_missing_cv_is_an_actionable_message_not_a_traceback(tmp_path, monkeyp
 
     assert exit_code == 2
     assert "profile/cv.md" in capsys.readouterr().err
+
+
+# --- what a run actually pays for ---------------------------------------------
+#
+# `score` used to send every survivor to the model on every run, so a nightly
+# run re-bought verdicts it already had. The rubric version is the natural cache
+# key: same rubric and same posting means the same answer.
+
+
+def _survives_stage_two(conn, reason=None) -> None:
+    """`_store_posting` stores a posting but no verdict, and stage 3 only ever
+    looks at postings stage 2 passed."""
+    conn.execute(
+        "INSERT INTO prefilter_verdicts (posting_id, rejected_reason, detail, "
+        "stack_hits_json, evaluated_at) VALUES (?,?,'','[]','2026-08-22T09:00:00+00:00')",
+        (POSTING["id"], reason),
+    )
+    conn.commit()
+
+
+def test_a_posting_already_scored_under_this_rubric_is_not_scored_again(conn):
+    _store_posting(conn)
+    _survives_stage_two(conn)
+    result = score.score_posting(FakeClient(), RUBRIC, POSTING)
+    score.store_score(conn, POSTING["id"], result, "2026-08-22T09:00:00+00:00")
+
+    pending = score.postings_to_score(conn, score.prompt_version(RUBRIC))
+
+    assert pending == []
+
+
+def test_a_posting_scored_under_an_older_rubric_is_scored_again(conn):
+    """A rubric change must re-score everything, or the numbers mix two
+    generations of verdict."""
+    _store_posting(conn)
+    _survives_stage_two(conn)
+    result = score.score_posting(FakeClient(), RUBRIC, POSTING)
+    score.store_score(conn, POSTING["id"], result, "2026-08-22T09:00:00+00:00")
+
+    pending = score.postings_to_score(conn, "a-different-rubric")
+
+    assert [row["id"] for row in pending] == [POSTING["id"]]
+
+
+def test_rescore_pays_again_on_purpose(conn):
+    _store_posting(conn)
+    _survives_stage_two(conn)
+    result = score.score_posting(FakeClient(), RUBRIC, POSTING)
+    score.store_score(conn, POSTING["id"], result, "2026-08-22T09:00:00+00:00")
+
+    pending = score.postings_to_score(conn, score.prompt_version(RUBRIC), rescore=True)
+
+    assert [row["id"] for row in pending] == [POSTING["id"]]
+
+
+def test_a_posting_rejected_by_stage_two_is_never_scored(conn):
+    _store_posting(conn)
+    _survives_stage_two(conn, reason="stale")
+
+    assert score.postings_to_score(conn, score.prompt_version(RUBRIC)) == []

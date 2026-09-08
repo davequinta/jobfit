@@ -25,6 +25,12 @@ shares with the CV.
 
 ## Scoring rubric — 100 points
 
+**The score is the sum of the five components below, and nothing else.** Award
+each category its points, add them, and report the total. Do not apply a further
+adjustment after summing, and do not shade the total down because the posting
+feels unexciting — the shading is already in the component scores, and doing it
+twice compresses every result into the bottom half of the scale.
+
 **Stack overlap — 35 points.** How much of the posting's required stack the
 candidate already has. Weight what the posting treats as required over what it
 lists as nice-to-have. Python (Django, FastAPI), TypeScript/JavaScript,
@@ -77,7 +83,9 @@ and postings that hide compensation entirely.
 **`why_not` must never be empty.** Every posting has something wrong with it. A
 scorer that only rationalises matches is useless — the candidate is trying to
 reject 90% of what they read, and `why_not` is the field that does that work. If
-you cannot find a genuine concern, the score is too high; lower it.
+you cannot find a genuine concern, you have not read the posting closely enough
+— look again. Do not lower the score to compensate for a thin `why_not`: the
+score is the sum of the components and the bullets are a separate obligation.
 
 **Cite the posting.** Every `why_fit` and `why_not` bullet must reference
 specific language from the posting. "Good stack match" is worthless. "Requires
@@ -103,7 +111,7 @@ features end to end across a Django backend and a Next.js frontend, deploying on
 AWS. 5+ years experience. We are building AI-assisted workflows into our core
 product. $120k–$150k."
 
-**Score: 91, confidence high.** Stack is an exact match (33). Explicitly senior
+**Score: 91, confidence high.** 33 + 24 + 20 + 6 + 8. Stack is an exact match (33). Explicitly senior
 with end-to-end ownership (24). Worldwide (20). AI work is product-facing but
 described in one line (6). Salary stated, functioning org (8). `why_not` still
 has content: the AI work is described vaguely enough that it may be a single
@@ -114,7 +122,7 @@ given could mean the role is more solo than the candidate wants.
 production ML models. PyTorch, feature stores, model serving at scale. Partner
 with data science on experimentation."
 
-**Score: 24, confidence high.** This is the trap case. Shares AI vocabulary with
+**Score: 34, confidence high.** 8 + 15 + 4 + 2 + 5. This is the trap case. Shares AI vocabulary with
 the CV and is genuinely a strong engineering role, but it is a different
 discipline: model training and MLOps, not product engineering (8). Seniority
 unlabelled (15). "Remote (US)" signals a residency requirement (4). It is ML
@@ -126,7 +134,7 @@ bonus and not a substitute for the core (2). No compensation stated (5).
 Node. Fast-paced startup, equity-heavy compensation, unpaid two-week trial
 project."
 
-**Score: 31, confidence medium.** Partial stack overlap, React yes but no Python
+**Score: 36, confidence medium.** 18 + 10 + 8 + 0 + 0. Partial stack overlap, React yes but no Python
 and the backend is unspecified (18). No seniority signal and "Developer" with
 client work suggests mid-level delivery (10). Location not stated (8). No LLM
 product work (0). Equity-heavy with an unpaid trial is a red flag, not a

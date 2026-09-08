@@ -293,12 +293,35 @@ def load_rubric(instructions_path: str, cv_path: str, stack_path: str) -> Rubric
     )
 
 
+def postings_to_score(conn: sqlite3.Connection, version: str,
+                      rescore: bool = False) -> list:
+    """Survivors of stage 2 that this rubric has not already judged.
+
+    The rubric version is the cache key, and it is the right one: the same
+    posting under the same rubric produces the same verdict, and buying it
+    again is the whole cost of a nightly run. Change the rubric and every
+    posting comes back automatically, which is also what keeps two generations
+    of verdict from mixing in one eval.
+    """
+    return conn.execute(
+        """SELECT p.* FROM postings p
+             JOIN prefilter_verdicts v ON v.posting_id = p.id
+             LEFT JOIN scores s ON s.posting_id = p.id
+            WHERE v.rejected_reason IS NULL
+              AND (? OR s.posting_id IS NULL OR s.prompt_version != ?)
+            ORDER BY p.published_at DESC""",
+        (1 if rescore else 0, version),
+    ).fetchall()
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = runtime.stage_parser("Stage 3 — score postings that survived stage 2.")
     parser.add_argument("--profile", default="profile/stack.yaml")
     parser.add_argument("--cv", default="profile/cv.md")
     parser.add_argument("--rubric", help="defaults to prompts/score_system.md, else the bundled rubric")
     parser.add_argument("--limit", type=int, help="score at most N postings (development)")
+    parser.add_argument("--rescore", action="store_true",
+                        help="score postings this rubric has already judged, and pay again")
     args = parser.parse_args(argv)
 
     runtime.configure_logging()
@@ -321,17 +344,18 @@ def main(argv: list[str] | None = None) -> int:
     client = anthropic.Anthropic()
     conn = runtime.open_db(args)
 
-    pending = conn.execute(
-        """SELECT p.* FROM postings p
-             JOIN prefilter_verdicts v ON v.posting_id = p.id
-            WHERE v.rejected_reason IS NULL
-            ORDER BY p.published_at DESC"""
-    ).fetchall()
+    version = prompt_version(rubric)
+    pending = postings_to_score(conn, version, rescore=args.rescore)
     if args.limit:
         pending = pending[: args.limit]
 
-    log.info("scoring %d postings with %s (prompt %s)", len(pending), MODEL,
-             prompt_version(rubric))
+    if not pending:
+        print(f"Every surviving posting is already scored under rubric {version}. "
+              "Nothing to do — `--rescore` pays for them again.")
+        conn.close()
+        return 0
+
+    log.info("scoring %d postings with %s (prompt %s)", len(pending), MODEL, version)
     scored = 0
     try:
         for posting in pending:

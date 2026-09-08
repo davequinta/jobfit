@@ -104,6 +104,44 @@ the rubric teaches the model to sum at the top and shade down everywhere else �
 which is the compression the scores show. Fixing the examples is the next
 change, and it needs a re-score ($1.31) to measure.
 
+## 2026-09-07 — rubric `f227c97dba81` → `e39642e40c3c`, not yet measured
+
+The arithmetic defect recorded above is fixed. Three changes, all to
+`score_system.md`, none to the threshold:
+
+1. The rubric now says outright that the score is the sum of the five
+   components and that no further adjustment follows, because it never said so
+   and the model was not doing it.
+2. The two worked examples that contradicted their own components were
+   corrected — the ML Engineer example listed 8 + 15 + 4 + 2 + 5 and declared
+   24, the Full Stack Developer example listed 18 + 10 + 8 + 0 + 0 and declared
+   31. They now declare 34 and 36, and all three examples show their sum.
+3. The `why_not` rule said "if you cannot find a genuine concern, the score is
+   too high; lower it", which turned a completeness obligation into downward
+   pressure on the number. It now says to look again, and not to move the score
+   to compensate for a thin `why_not`.
+
+**No numbers for this yet, and the ones above do not transfer.** Measuring it
+costs a re-score of the labelled set — the scores in the database were produced
+by `f227c97dba81` and comparing them to a rubric they were not scored under
+would be meaningless. `jobfit eval` warns when stored scores come from more than
+one rubric version, so this cannot be mixed up silently.
+
+To measure:
+
+```bash
+jobfit score      # ~$1.31; the rubric changed, so all 135 come back by themselves
+jobfit eval --note "rubric: examples now sum; explicit no-adjustment rule"
+```
+
+No `--rescore` needed: stage 3 skips postings already judged by the current
+rubric and this rubric is a new one, so every posting is pending again.
+
+The prediction, recorded before the fact so it can be wrong: scores rise
+substantially and the threshold that was right for the old scale is no longer
+right for the new one. Do not change the threshold in the same step — measure
+the rubric change first against threshold 25, then sweep.
+
 ---
 
 # Eval results
