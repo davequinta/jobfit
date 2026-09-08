@@ -228,6 +228,16 @@ create a new posting every night. A posting already in the database has only its
 `last_seen_at` bumped — nothing downstream sees it change, and it is never
 re-scored.
 
+**A republished posting is caught too.** The key above is what the spec asked
+for, and a board defeats it by reissuing the same job at `…-python-react-ai` and
+then `…-python-react-ai-1`: different canonical URL, different key, two rows.
+Sixteen of the first 846 postings were one job twice, and one of them reached
+the eval set and counted twice toward recall. A second check matches on source,
+company and title, which is a judgement rather than a hash — two roles really
+can share a title — so every merge writes a `republished` row to
+`ingest_issues` naming both URLs. Merging across *sources* is deliberately not
+done: two boards carrying one job are two listings with different text.
+
 **The upstream record is kept verbatim** in `postings.raw_json`. Normalization is
 a guess about someone else's schema; keeping the original means a wrong guess
 costs a re-parse instead of a re-crawl of a feed that has since rotated its
@@ -603,7 +613,7 @@ old and new scores never silently mix.
 
 ```bash
 pip install -e . && pip install pytest
-pytest                       # 190 tests, no network, no API calls, no tokens
+pytest                       # 194 tests, no network, no API calls, no tokens
 ```
 
 Every test runs offline. The feed parsers are pure functions over recorded

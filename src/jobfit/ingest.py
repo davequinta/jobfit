@@ -20,14 +20,14 @@ import json
 import logging
 import os
 import sqlite3
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 import yaml
 
 from jobfit.db import connect, iso_now
 from jobfit.http import PoliteFetcher
-from jobfit.sources import PARSERS, Issue, Posting
+from jobfit.sources import PARSERS, Issue, Posting, normalize_field
 
 from jobfit import runtime
 
@@ -55,6 +55,7 @@ class Feed:
 class StoreResult:
     inserted: int
     duplicates: int
+    republished: list = field(default_factory=list)
 
 
 @dataclass
@@ -148,9 +149,38 @@ def store(conn: sqlite3.Connection, postings: list[Posting], run_id: int, now: s
 
     A posting that is already stored is left otherwise untouched — that is what
     "seen before is skipped, not re-scored" means downstream.
+
+    Two things count as already stored. The dedupe key catches the same URL
+    seen again. A second check catches the same job republished under a new
+    one: boards reissue a listing at `...-ai` and then `...-ai-1`, which is a
+    different canonical URL and therefore a different key, and thirteen of the
+    first 846 postings were one job twice. Matching on source, company and
+    title instead is a judgement — two roles really can share a title — so
+    every merge is reported rather than made quietly.
     """
+    known = {
+        (row["source"], normalize_field(row["company"]), normalize_field(row["title"])):
+            row["url"]
+        for row in conn.execute("SELECT source, company, title, url FROM postings")
+    }
+
     inserted = 0
+    republished: list[Issue] = []
     for posting in postings:
+        republish = (posting.source, normalize_field(posting.company),
+                     normalize_field(posting.title))
+        if republish in known:
+            republished.append(Issue(
+                posting.source, posting.feed_url, "republished",
+                f"{posting.company} — {posting.title}: {posting.url} is already "
+                f"stored as {known[republish]}",
+            ))
+            conn.execute(
+                "UPDATE postings SET last_seen_at = ? WHERE url = ?",
+                (now, known[republish]),
+            )
+            continue
+
         cursor = conn.execute(
             """
             INSERT INTO postings (
@@ -179,8 +209,11 @@ def store(conn: sqlite3.Connection, postings: list[Posting], run_id: int, now: s
                 "UPDATE postings SET last_seen_at = ? WHERE dedupe_key = ?",
                 (now, posting.dedupe_key),
             )
+        if cursor.rowcount == 1:
+            known[republish] = posting.url
     conn.commit()
-    return StoreResult(inserted=inserted, duplicates=len(postings) - inserted)
+    return StoreResult(inserted=inserted, duplicates=len(postings) - inserted,
+                       republished=republished)
 
 
 def record_issues(conn: sqlite3.Connection, run_id: int, issues: list[Issue], now: str) -> None:
@@ -239,7 +272,10 @@ def ingest(conn: sqlite3.Connection, feeds: list[Feed], fetcher, now: str,
 
         result = _parse(feed, body, resolve_company)
         stored = store(conn, result.postings, run_id, now)
-        record_issues(conn, run_id, result.issues, now)
+        record_issues(conn, run_id, result.issues + stored.republished, now)
+
+        for issue in stored.republished:
+            log.info("%s: %s", feed.name, issue.detail)
 
         feed_dropped = result.fetched - len(result.postings)
         fetched += result.fetched

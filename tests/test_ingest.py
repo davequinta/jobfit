@@ -296,3 +296,66 @@ class _FakeClock:
     def sleep(self, seconds: float) -> None:
         self.slept.append(seconds)
         self.t += seconds
+
+
+# --- the same job, posted twice ----------------------------------------------
+#
+# The dedupe key includes the canonical URL, which is what the spec asked for
+# and what a board defeats by republishing the same job at `...-ai` and
+# `...-ai-1`. Thirteen of the first 846 postings were the same job twice, and
+# one of them reached the eval set and counted twice toward recall.
+
+
+def posting(company="Huzzle", title="Full-Stack Developer", url="https://wwr/a",
+            source="weworkremotely"):
+    return sources.Posting(
+        dedupe_key=sources.dedupe_key(company, title, url),
+        source=source, feed_url=WWR_URL, url=url, canonical_url=url,
+        company=company, title=title, description_text="body",
+        published_at="2026-08-20T09:00:00+00:00", raw_json="{}",
+    )
+
+
+def test_the_same_job_republished_under_a_new_url_is_not_stored_twice(conn):
+    run_id = ingest.start_run(conn, NOW)
+
+    result = ingest.store(conn, [posting(url="https://wwr/a"),
+                                 posting(url="https://wwr/a-1")], run_id, NOW)
+
+    assert (result.inserted, result.duplicates) == (1, 1)
+    assert conn.execute("SELECT count(*) AS n FROM postings").fetchone()["n"] == 1
+
+
+def test_a_republish_is_reported_rather_than_silently_dropped(conn):
+    """Merging two postings is a judgement call, so it leaves a record naming
+    both URLs. A wrong merge should be findable, not invisible."""
+    run_id = ingest.start_run(conn, NOW)
+
+    result = ingest.store(conn, [posting(url="https://wwr/a"),
+                                 posting(url="https://wwr/a-1")], run_id, NOW)
+
+    assert [issue.kind for issue in result.republished] == ["republished"]
+    detail = result.republished[0].detail
+    assert "https://wwr/a-1" in detail and "https://wwr/a" in detail
+
+
+def test_two_different_roles_at_one_company_are_both_kept(conn):
+    run_id = ingest.start_run(conn, NOW)
+
+    result = ingest.store(conn, [posting(title="Senior Backend Engineer"),
+                                 posting(title="Senior Frontend Engineer",
+                                         url="https://wwr/b")], run_id, NOW)
+
+    assert result.inserted == 2
+
+
+def test_the_same_title_at_a_different_source_is_kept(conn):
+    """Two boards carrying one job are two listings with different text and
+    different rules. Merging across sources is a bigger claim than this makes."""
+    run_id = ingest.start_run(conn, NOW)
+
+    result = ingest.store(conn, [posting(source="weworkremotely"),
+                                 posting(source="remotive", url="https://rem/a")],
+                          run_id, NOW)
+
+    assert result.inserted == 2
