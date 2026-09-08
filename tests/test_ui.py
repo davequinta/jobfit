@@ -229,3 +229,75 @@ def test_a_malformed_cut_raises_rather_than_silently_reverting(tmp_path):
 
     with pytest.raises(ValueError):
         runtime.threshold(Args(config))
+
+
+# --- the labelling panel ------------------------------------------------------
+#
+# Everything here exists to protect one property: a label must be your
+# judgement, formed without seeing what the model said. The page holds the
+# scores — that is the whole Results tab — so the labelling payload has to be
+# built to exclude them rather than merely happening not to include them.
+
+
+def test_the_labelling_payload_carries_no_score_for_a_scored_posting(conn, labels):
+    """Every posting in this fixture is scored. None of that may reach the
+    panel where the verdict is given."""
+    records = ui.label_records(conn, labels)
+
+    assert records
+    blob = json.dumps(records)
+    for forbidden in ("fit_score", "score", "confidence", "why_fit", "why_not", "88", "74"):
+        assert forbidden not in blob
+
+
+def test_the_panel_shows_the_whole_posting_not_the_stored_excerpt(conn, labels):
+    """The JSONL keeps 320 characters so the file stays scannable. A screen has
+    no such constraint, and judging on a third of a posting is how a borderline
+    call gets made badly."""
+    records = {r["url"]: r for r in ui.label_records(conn, labels)}
+
+    assert records["https://example.com/1"]["description"] == \
+        "We need someone for our Django backend."
+
+
+def test_saving_a_label_changes_one_record_and_leaves_the_rest(conn, labels):
+    ui.save_label(labels, "https://example.com/2", "borderline", "not sure about seniority")
+
+    saved = {json.loads(line)["url"]: json.loads(line)
+             for line in labels.read_text().splitlines() if line.strip()}
+    assert saved["https://example.com/2"]["label"] == "borderline"
+    assert saved["https://example.com/2"]["reason"] == "not sure about seniority"
+    assert saved["https://example.com/1"]["label"] == "apply"
+    assert len(saved) == 4
+
+
+def test_changing_a_label_replaces_it_rather_than_clearing_it(conn, labels):
+    """`u` in the terminal undoes, which empties the verdict. A click should
+    set the new one directly — clearing by accident is how a label went blank."""
+    ui.save_label(labels, "https://example.com/1", "skip", "reconsidered")
+
+    saved = {json.loads(line)["url"]: json.loads(line)
+             for line in labels.read_text().splitlines() if line.strip()}
+    assert saved["https://example.com/1"]["label"] == "skip"
+
+
+def test_an_unknown_label_is_refused(conn, labels):
+    with pytest.raises(ValueError):
+        ui.save_label(labels, "https://example.com/1", "maybe", "")
+
+
+def test_clearing_a_label_is_allowed_but_must_be_explicit(conn, labels):
+    ui.save_label(labels, "https://example.com/1", "", "")
+
+    saved = {json.loads(line)["url"]: json.loads(line)
+             for line in labels.read_text().splitlines() if line.strip()}
+    assert saved["https://example.com/1"]["label"] == ""
+
+
+def test_the_panel_counts_what_is_left_and_what_the_mix_looks_like(conn, labels):
+    """Ending with no borderline labels at all is how the first eval set came
+    out unable to say anything about the hard middle. The mix is on screen
+    while there is still time to fix it."""
+    progress = ui.label_progress(ui.label_records(conn, labels))
+
+    assert progress == {"apply": 2, "skip": 2, "borderline": 0, "unlabelled": 0, "total": 4}

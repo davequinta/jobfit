@@ -195,6 +195,85 @@ def build_state(conn, labels_path, profile_path, threshold) -> dict:
     }
 
 
+# --- labelling ---------------------------------------------------------------
+#
+# The one panel that must not see what the Results tab is full of. A label is
+# only worth measuring against if it was formed without knowing the answer, so
+# the payload below is built field by field from the posting and never from the
+# `scores` table — the same rule `label_skeleton` follows in the terminal,
+# enforced again here because this page holds both.
+
+
+def label_records(conn: sqlite3.Connection, labels_path: str | Path) -> list[dict]:
+    """The eval set, joined to the full posting text, with no verdict attached.
+
+    The JSONL keeps a 320-character excerpt so the file stays readable in an
+    editor. A screen has no such constraint, and judging a borderline posting
+    on a third of it is how a borderline call gets made badly.
+    """
+    if not Path(labels_path).is_file():
+        return []
+
+    bodies = {
+        row["url"]: row["description_text"]
+        for row in conn.execute("SELECT url, description_text FROM postings")
+    }
+    records = []
+    for line in Path(labels_path).read_text().splitlines():
+        if not line.strip():
+            continue
+        entry = json.loads(line)
+        records.append({
+            # url and label carry the meaning; the rest is what gets drawn, and
+            # a hand-written label file is allowed to omit it.
+            "url": entry["url"],
+            "company": entry.get("company", ""),
+            "title": entry.get("title", ""),
+            "location": entry.get("location", ""),
+            "salary": entry.get("salary", ""),
+            "posted": entry.get("posted", ""),
+            "stack_seen": entry.get("stack_seen", []),
+            "description": bodies.get(entry["url"], entry.get("excerpt", "")),
+            "label": entry.get("label", ""),
+            "reason": entry.get("reason", ""),
+        })
+    return records
+
+
+def label_progress(records: list[dict]) -> dict:
+    """Counts by verdict, so the mix is visible while there is still time.
+
+    The first eval set was finished with no borderline labels at all, which is
+    what left it unable to say anything about the hard middle.
+    """
+    counts = {"apply": 0, "skip": 0, "borderline": 0, "unlabelled": 0,
+              "total": len(records)}
+    for record in records:
+        counts[record["label"] or "unlabelled"] += 1
+    return counts
+
+
+def save_label(labels_path: str | Path, url: str, label: str, reason: str) -> None:
+    """Set one verdict, in place, leaving every other line untouched.
+
+    A click sets the new value directly rather than undoing to empty and asking
+    again — the terminal's `u` clears, and a verdict cleared by accident is how
+    one went blank.
+    """
+    if label and label not in evals.LABELS:
+        raise ValueError(f"unknown label {label!r}; expected one of {sorted(evals.LABELS)}")
+
+    path = Path(labels_path)
+    lines = []
+    for line in path.read_text().splitlines():
+        if line.strip():
+            entry = json.loads(line)
+            if entry["url"] == url:
+                entry["label"], entry["reason"] = label, reason
+            lines.append(json.dumps(entry, ensure_ascii=False))
+    path.write_text("\n".join(lines) + "\n")
+
+
 # --- writes ------------------------------------------------------------------
 
 
@@ -257,6 +336,13 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         if self.path == "/":
             self._send(TEMPLATE.read_bytes(), "text/html; charset=utf-8")
+        elif self.path == "/api/labels":
+            conn = self._open_db()
+            try:
+                records = label_records(conn, self.context["labels"])
+                self._json({"records": records, "progress": label_progress(records)})
+            finally:
+                conn.close()
         elif self.path == "/api/state":
             conn = self._open_db()
             try:
@@ -276,6 +362,16 @@ class Handler(BaseHTTPRequestHandler):
                 self.context["threshold"] = threshold
                 log.info("threshold saved: %d", threshold)
                 self._json({"saved": threshold})
+            elif self.path == "/api/label":
+                body = self._body()
+                conn = self._open_db()
+                try:
+                    save_label(self.context["labels"], body["url"],
+                               body["label"], body.get("reason", ""))
+                    records = label_records(conn, self.context["labels"])
+                finally:
+                    conn.close()
+                self._json({"progress": label_progress(records)})
             elif self.path == "/api/rules/preview":
                 conn = self._open_db()
                 try:

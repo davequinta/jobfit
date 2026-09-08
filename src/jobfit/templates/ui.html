@@ -113,6 +113,7 @@
   <nav>
     <button id="tabResults" aria-selected="true">Results</button>
     <button id="tabRules" aria-selected="false">Rules</button>
+    <button id="tabLabel" aria-selected="false">Label</button>
   </nav>
 </header>
 
@@ -129,6 +130,38 @@
       <div class="note" id="metricsNote"></div>
     </div>
     <div id="list"></div>
+  </section>
+
+  <section id="label" class="hidden">
+    <div class="controls">
+      <div class="surfaced" id="labelProgress"></div>
+      <div class="note">Judge these without looking at Results. A label is only
+        worth measuring against if you formed it without knowing the answer —
+        nothing on this panel comes from the scorer.</div>
+      <div style="margin-top:12px; display:flex; gap:8px; align-items:center;">
+        <button class="ghost" id="prevPosting">← previous</button>
+        <button class="ghost" id="nextPosting">next →</button>
+        <label style="margin-left:auto; font-size:13px; color:var(--muted);">
+          <input type="checkbox" id="onlyUnlabelled" checked> only unlabelled
+        </label>
+      </div>
+    </div>
+
+    <div class="card" id="labelCard" style="border-left-color: var(--accent);">
+      <div id="labelHead"></div>
+      <div class="body" id="labelBody"></div>
+      <div style="margin-top:14px;">
+        <input type="text" id="labelReason" placeholder="why — one line, for your future self"
+               style="width:100%; padding:8px 10px; border:1px solid var(--line);
+                      border-radius:6px; background:var(--bg); color:var(--ink); font:inherit;">
+        <div style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap;">
+          <button class="save verdict" data-label="apply">Apply</button>
+          <button class="save verdict" data-label="skip">Skip</button>
+          <button class="save verdict" data-label="borderline">Borderline</button>
+          <button class="ghost verdict" data-label="">Clear</button>
+        </div>
+      </div>
+    </div>
   </section>
 
   <section id="rules" class="hidden">
@@ -244,6 +277,92 @@ function card(posting, below = false) {
   </details>`;
 }
 
+// --- labelling ---------------------------------------------------------------
+
+let LABELS = { records: [], progress: {} };
+let atPosting = 0;
+
+async function loadLabels() {
+  LABELS = await (await fetch("/api/labels")).json();
+  atPosting = firstUnlabelled();
+  renderLabel();
+}
+
+const firstUnlabelled = () => {
+  const index = LABELS.records.findIndex(record => !record.label);
+  return index === -1 ? 0 : index;
+};
+
+function visibleIndexes() {
+  const onlyNew = $("onlyUnlabelled").checked;
+  return LABELS.records
+    .map((record, index) => ({ record, index }))
+    .filter(entry => !onlyNew || !entry.record.label || entry.index === atPosting)
+    .map(entry => entry.index);
+}
+
+function step(direction) {
+  const visible = visibleIndexes();
+  const here = visible.indexOf(atPosting);
+  const next = here === -1 ? 0 : here + direction;
+  if (next >= 0 && next < visible.length) atPosting = visible[next];
+  renderLabel();
+}
+
+function renderLabel() {
+  const p = LABELS.progress;
+  $("labelProgress").textContent =
+    `${p.apply} apply · ${p.skip} skip · ${p.borderline} borderline · ` +
+    `${p.unlabelled} still to judge, of ${p.total}` +
+    (p.borderline === 0 && p.total - p.unlabelled > 8
+      ? "   — no borderline calls yet; those are the ones that teach you something"
+      : "");
+
+  const record = LABELS.records[atPosting];
+  if (!record) {
+    $("labelHead").innerHTML = "<p>Nothing to label. Run <code>jobfit label</code> first.</p>";
+    $("labelBody").innerHTML = "";
+    return;
+  }
+
+  const stack = record.stack_seen.join(", ") || "none matched";
+  const verdict = record.label
+    ? `<span class="tag ${record.label}">you said: ${record.label}` +
+      `${record.reason ? " — " + escape(record.reason) : ""}</span>`
+    : `<span class="tag">not judged yet</span>`;
+  $("labelHead").innerHTML = `
+    <div style="display:flex; gap:12px; align-items:baseline;">
+      <span class="score">${atPosting + 1}</span>
+      <span class="who"><b>${escape(record.company)}</b> — <i>${escape(record.title)}</i></span>
+      ${verdict}
+    </div>`;
+  $("labelBody").innerHTML = `
+    <p>${escape(record.location)} · ${escape(record.salary)} · posted ${escape(record.posted)}</p>
+    <p>stack seen: ${escape(stack)}</p>
+    <p><a href="${escape(record.url)}" target="_blank" rel="noreferrer">${escape(record.url)}</a></p>
+    <div style="max-height:340px; overflow-y:auto; white-space:pre-wrap;
+                border-top:1px solid var(--line); padding-top:10px; margin-top:10px;">
+      ${escape(record.description)}
+    </div>`;
+  $("labelReason").value = record.reason || "";
+}
+
+async function setVerdict(label) {
+  const record = LABELS.records[atPosting];
+  if (!record) return;
+  const reason = $("labelReason").value.trim();
+  const result = await post("/api/label", { url: record.url, label, reason });
+  record.label = label;
+  record.reason = reason;
+  LABELS.progress = result.progress;
+  if (label) {
+    const next = LABELS.records.findIndex((r, i) => i > atPosting && !r.label);
+    atPosting = next === -1 ? atPosting : next;
+    $("labelReason").value = "";
+  }
+  renderLabel();
+}
+
 // --- rules -------------------------------------------------------------------
 
 function fillRules(rules) {
@@ -321,15 +440,34 @@ $("saveRules").addEventListener("click", async event => {
     setTimeout(() => { event.target.textContent = "Save rules"; }, 1400);
   } catch (error) { alert(error.message); }
 });
-for (const [button, shown, hidden] of [["tabResults", "results", "rules"],
-                                       ["tabRules", "rules", "results"]]) {
+const TABS = { tabResults: "results", tabRules: "rules", tabLabel: "label" };
+for (const [button, section] of Object.entries(TABS)) {
   $(button).addEventListener("click", () => {
-    $(shown).classList.remove("hidden");
-    $(hidden).classList.add("hidden");
-    $("tabResults").ariaSelected = String(shown === "results");
-    $("tabRules").ariaSelected = String(shown === "rules");
+    for (const [other, otherSection] of Object.entries(TABS)) {
+      $(otherSection).classList.toggle("hidden", otherSection !== section);
+      $(other).ariaSelected = String(other === button);
+    }
+    if (section === "label") loadLabels();
   });
 }
+
+$("prevPosting").addEventListener("click", () => step(-1));
+$("nextPosting").addEventListener("click", () => step(1));
+$("onlyUnlabelled").addEventListener("change", renderLabel);
+for (const button of document.querySelectorAll(".verdict")) {
+  button.addEventListener("click", async event => {
+    try { await setVerdict(event.target.dataset.label); }
+    catch (error) { alert(error.message); }
+  });
+}
+document.addEventListener("keydown", event => {
+  if ($("label").classList.contains("hidden")) return;
+  if (event.target.tagName === "INPUT") return;
+  const key = { a: "apply", s: "skip", b: "borderline" }[event.key.toLowerCase()];
+  if (key) setVerdict(key).catch(error => alert(error.message));
+  else if (event.key === "ArrowLeft") step(-1);
+  else if (event.key === "ArrowRight") step(1);
+});
 
 load();
 </script>

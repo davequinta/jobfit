@@ -73,7 +73,7 @@ a thing you read, and every application stays a decision you make.
 | 2 — prefilter | **Working.** 163 survive; 79% cut over what the feeds still carry. |
 | 3 — score | **Working, and owed a re-run.** 135 postings scored on 2026-08-23 (`claude-sonnet-5`, synchronous path); caching confirmed live at 653,952 cache-read tokens against 170,838 uncached, $1.31 for the run. The rubric has changed since, so those 135 and 41 newer ones — 176 — are pending. Stage 3 knows: the rubric version is its cache key. |
 | Queue output | **Working.** Writes `queue/YYYY-MM-DD.md` and appends to `out/applications.csv`. |
-| Local UI | **Working.** `jobfit ui` serves one page on 127.0.0.1: the run, a threshold you can drag with precision and recall moving under it, and the prefilter rules with a live preview of what they would cut. |
+| Local UI | **Working.** `jobfit ui` serves one page on 127.0.0.1: the run with a threshold you can drag and watch precision and recall move, the prefilter rules with a live preview of what they would cut, and the labelling panel where the eval set gets made — blind to the scores by construction. |
 | 4 — draft | **Dropped**, not pending. Cut on 2026-09-07 rather than left as a stub — the reasoning is in SPEC.md. |
 | Evals | **Measured once.** 39 postings hand-labelled; precision 13 of 15, recall 13 of 22 at threshold 25 — under the *previous* rubric. The current one is unmeasured until the re-score above. Both, and everything the numbers do not support, are in [evals/results.md](evals/results.md). |
 
@@ -633,7 +633,7 @@ old and new scores never silently mix.
 
 ```bash
 pip install -e . && pip install pytest
-pytest                       # 203 tests, no network, no API calls, no tokens
+pytest                       # 210 tests, no network, no API calls, no tokens
 ```
 
 Every test runs offline. The feed parsers are pure functions over recorded
@@ -764,6 +764,20 @@ hiding them, and expands to the `why_fit` and `why_not` bullets. Drag the
 threshold and the queue size, precision, recall and both error counts update
 against your hand labels. *Save as default* writes `threshold:` into
 `config.yaml`, which is what `jobfit queue` and `jobfit eval` then read.
+
+**Label** is where the eval set gets made. One posting at a time, with the
+*whole* description rather than the 320-character excerpt the JSONL keeps, and
+a verdict is one click or one keystroke — `a`, `s`, `b`, arrows to move. It
+shows the running mix (apply / skip / borderline / left to judge) and says so
+when there are no borderline calls, because finishing a set without any is how
+the first one ended up unable to say anything about the hard middle. Changing a
+verdict sets the new one directly; the terminal's `u` undoes to empty, and a
+verdict cleared by accident is how one went blank.
+
+Nothing on that panel comes from the scorer. The page holds every score — that
+is the whole Results tab — so the labelling payload is built field by field
+from the posting and never from the `scores` table, and a test asserts no score
+reaches it for a posting that has one.
 
 **Rules** edits the stage 2 filters — stack aliases, title exclusions, junior
 signals, eligibility phrases, maximum age — and previews the cut they would
