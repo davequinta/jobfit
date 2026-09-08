@@ -28,7 +28,7 @@ Four commands, run in order, each reading what the last one wrote:
 ```
 
 Those are real numbers from the run of 2026-08-23, measured end to end, not an
-illustration. The corpus has grown since — 1,266 postings stored, 176 surviving
+illustration. The corpus has grown since — 1,266 postings stored, 163 surviving
 stage 2 — and is waiting on a re-score under the current rubric. What you end up
 reading is `queue/YYYY-MM-DD.md`: postings best first, each with its score, the
 link, three bullets on why it fits and one to three on why it might not. Half an
@@ -57,8 +57,9 @@ postings required Go got caught. (`LIKE '%Go%'` matches "going" and "Google".)
 no model output visible — and the scores compared against them. That measurement
 is the whole reason the tool works at all: it shipped cutting at 70 while the
 scorer's real range was 3–78, surfacing 1 posting in 22 that deserved one. At 25
-it surfaces 13 of 22 and is wrong twice. The numbers, and everything they do not
-support, are in [evals/results.md](evals/results.md).
+it surfaced 13 of 22 and was wrong twice — measured 2026-09-07 on 39 labels,
+under the rubric of that date. The numbers, and everything they do not support,
+are in [evals/results.md](evals/results.md).
 
 **It never applies for you.** Auto-submitted applications get 1–3% response
 rates and get flagged by ATS platforms as spam. The point is to spend the same
@@ -71,11 +72,11 @@ a thing you read, and every application stays a decision you make.
 |---|---|
 | 1 — ingest | **Working.** 1,266 postings stored from 5 sources on real data. |
 | 2 — prefilter | **Working.** 163 survive; 79% cut over what the feeds still carry. |
-| 3 — score | **Working, and owed a re-run.** 135 postings scored on 2026-08-23 (`claude-sonnet-5`, synchronous path); caching confirmed live at 653,952 cache-read tokens against 170,838 uncached, $1.31 for the run. The rubric has changed since, so those 135 and 41 newer ones — 176 — are pending. Stage 3 knows: the rubric version is its cache key. |
+| 3 — score | **Working, and owed a re-run.** 135 postings scored on 2026-08-23 (`claude-sonnet-5`, synchronous path); caching confirmed live at 653,952 cache-read tokens against 170,838 uncached, $1.31 for the run. The rubric has changed since, so all of them are pending again, along with everything ingested after: 202 postings — the 163 surviving stage 2 plus the eval set, which is scored whatever its age. Stage 3 works this out itself; the rubric version is its cache key. |
 | Queue output | **Working.** Writes `queue/YYYY-MM-DD.md` and appends to `out/applications.csv`. |
 | Local UI | **Working.** `jobfit ui` serves one page on 127.0.0.1: the run with a threshold you can drag and watch precision and recall move, the prefilter rules with a live preview of what they would cut, and the labelling panel where the eval set gets made — blind to the scores by construction. |
 | 4 — draft | **Dropped**, not pending. Cut on 2026-09-07 rather than left as a stub — the reasoning is in SPEC.md. |
-| Evals | **Measured once.** 39 postings hand-labelled; precision 13 of 15, recall 13 of 22 at threshold 25 — under the *previous* rubric. The current one is unmeasured until the re-score above. Both, and everything the numbers do not support, are in [evals/results.md](evals/results.md). |
+| Evals | **Measured once, on 2026-09-07.** 39 postings, rubric `f227c97dba81`: precision 13 of 15, recall 13 of 22 at threshold 25. That is a dated record, not a running number — the set is being extended and relabelled on a fresher corpus, so `jobfit eval` today reports something different and partly unscored. Every measurement, and everything the numbers do not support, is in [evals/results.md](evals/results.md). |
 
 Being blunt about what that means: the funnel runs end to end, and the scorer
 has now been measured against 39 hand labels rather than trusted. That
@@ -297,17 +298,26 @@ repo. `robots.txt` is fetched once per host and honoured.
 
 | Source | Postings | Access | robots.txt |
 |---|---|---|---|
-| Get on Board | 301 | Public JSON:API, 4 pages | `Allow: /`, `ai-train=no` — see below |
-| Hacker News "Who is hiring" | 230 | Public Algolia API | No restrictions |
-| We Work Remotely | 195 | RSS, 5 engineering category feeds | `Allow: /` |
-| Remote OK | 100 | Public JSON API | `Allow: /`, `ai-train=no` — see below |
-| Remotive | 20 | Public JSON API | Disallows `/api/*` — see below |
+| Hacker News "Who is hiring" | 430 | Public Algolia API | No restrictions |
+| Get on Board | 378 | Public JSON:API, 4 pages | `Allow: /`, `ai-train=no` — see below |
+| We Work Remotely | 235 | RSS, 5 engineering category feeds | `Allow: /` |
+| Remote OK | 200 | Public JSON API | `Allow: /`, `ai-train=no` — see below |
+| Remotive | 23 | Public JSON API | Disallows `/api/*` — see below |
 
 **Get on Board** is LATAM-focused and the only source publishing salary as
 numbers rather than prose, which feeds the rubric's compensation points
 directly. Its API exposes company only as a relationship id and supports no
 `include`, so names are resolved one request at a time and cached in
 `source_companies` — a first run pays ~115 lookups, later runs pay almost none.
+
+**Six LATAM-focused platforms were assessed and rejected** — Torre, BairesDev,
+Tecla, Revelo, Mismo, Mappa. Five need a headless browser or publish no listings
+at all. Torre is the interesting one: it is technically easy and still a no,
+because its `robots.txt` allows the job-search landing page and disallows every
+actual search. It also runs JSON hosts that serve no `robots.txt`, which the
+evaluator here would read as permission — and that is exactly why they are not
+used. The evidence for each, and the ATS-board direction that would work
+instead, is in [issue #1](https://github.com/davequinta/jobfit/issues/1).
 
 **Hacker News** is the highest-signal source, because the postings are written
 by the companies themselves rather than relayed by a board — a different
@@ -579,7 +589,7 @@ SELECT (SELECT count(*) FROM postings) AS ingested,
        (SELECT count(*) FROM prefilter_verdicts WHERE rejected_reason IS NULL) AS survived,
        (SELECT count(*) FROM scores) AS scored,
        (SELECT count(*) FROM scores WHERE fit_score >= 25) AS queued;
--- 1266 | 176 | 135 | 45
+-- 1266 | 163 | 135 | 45
 
 -- Why a posting was thrown away, with the exact phrase that did it
 SELECT p.title, v.rejected_reason, v.detail
@@ -722,6 +732,18 @@ judgement in it.
 `jobfit eval` never calls the API. It compares scores already in the database
 against your labels, so the loop costs nothing to re-run and the whole suite
 works on a plane.
+
+**The eval set never expires.** Stage 2 rejects anything older than
+`max_age_days`, so two weeks after you build a set every posting in it is stale
+and stage 3 would skip it — meaning no rubric change after that could ever be
+measured against it. `jobfit score` therefore also scores whatever is in the
+label file, whatever its age, while still skipping what the current rubric has
+already judged. A posting's age says nothing about whether the scorer judges it
+well.
+
+Postings you have labelled but not yet scored are **named in the report, not
+ignored**, because counting them as relevant while they cannot be surfaced
+quietly deflates recall.
 
 Three choices in how the numbers are reported, each defensible:
 
