@@ -41,6 +41,12 @@ title_exclusions:
   - marketing
   - marketer
   - copywriter
+  - devops
+  - sre
+  - site reliability
+  - infrastructure engineer
+  - platform engineer
+  - cloud engineer
   - customer success
   - support engineer
   # Added after auditing a real run: these all survived every other rule.

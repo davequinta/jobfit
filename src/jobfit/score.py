@@ -294,7 +294,7 @@ def load_rubric(instructions_path: str, cv_path: str, stack_path: str) -> Rubric
 
 
 def postings_to_score(conn: sqlite3.Connection, version: str,
-                      rescore: bool = False) -> list:
+                      rescore: bool = False, labels: str | Path | None = None) -> list:
     """Survivors of stage 2 that this rubric has not already judged.
 
     The rubric version is the cache key, and it is the right one: the same
@@ -302,15 +302,29 @@ def postings_to_score(conn: sqlite3.Connection, version: str,
     again is the whole cost of a nightly run. Change the rubric and every
     posting comes back automatically, which is also what keeps two generations
     of verdict from mixing in one eval.
+
+    `labels` adds the hand-labelled set, whatever stage 2 says about it. The
+    eval set is a frozen corpus and stage 2 rejects anything older than two
+    weeks, so without this every eval set stops being scoreable a fortnight
+    after it is built — and a rubric change after that could never be measured
+    against it. Age says nothing about whether the scorer judges well.
     """
+    labelled = ()
+    if labels and Path(labels).is_file():
+        labelled = tuple(
+            json.loads(line)["url"]
+            for line in Path(labels).read_text().splitlines() if line.strip()
+        )
+
+    placeholders = ",".join("?" * len(labelled)) or "NULL"
     return conn.execute(
-        """SELECT p.* FROM postings p
+        f"""SELECT p.* FROM postings p
              JOIN prefilter_verdicts v ON v.posting_id = p.id
              LEFT JOIN scores s ON s.posting_id = p.id
-            WHERE v.rejected_reason IS NULL
+            WHERE (v.rejected_reason IS NULL OR p.url IN ({placeholders}))
               AND (? OR s.posting_id IS NULL OR s.prompt_version != ?)
             ORDER BY p.published_at DESC""",
-        (1 if rescore else 0, version),
+        (*labelled, 1 if rescore else 0, version),
     ).fetchall()
 
 
@@ -322,6 +336,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--limit", type=int, help="score at most N postings (development)")
     parser.add_argument("--rescore", action="store_true",
                         help="score postings this rubric has already judged, and pay again")
+    parser.add_argument("--labels", default="evals/labeled.jsonl",
+                        help="also score everything in this eval set, however old it is")
     args = parser.parse_args(argv)
 
     runtime.configure_logging()
@@ -345,7 +361,7 @@ def main(argv: list[str] | None = None) -> int:
     conn = runtime.open_db(args)
 
     version = prompt_version(rubric)
-    pending = postings_to_score(conn, version, rescore=args.rescore)
+    pending = postings_to_score(conn, version, rescore=args.rescore, labels=args.labels)
     if args.limit:
         pending = pending[: args.limit]
 

@@ -70,7 +70,7 @@ a thing you read, and every application stays a decision you make.
 | Stage | State |
 |---|---|
 | 1 — ingest | **Working.** 1,266 postings stored from 5 sources on real data. |
-| 2 — prefilter | **Working.** 176 survive; 78% cut over what the feeds still carry. |
+| 2 — prefilter | **Working.** 163 survive; 79% cut over what the feeds still carry. |
 | 3 — score | **Working, and owed a re-run.** 135 postings scored on 2026-08-23 (`claude-sonnet-5`, synchronous path); caching confirmed live at 653,952 cache-read tokens against 170,838 uncached, $1.31 for the run. The rubric has changed since, so those 135 and 41 newer ones — 176 — are pending. Stage 3 knows: the rubric version is its cache key. |
 | Queue output | **Working.** Writes `queue/YYYY-MM-DD.md` and appends to `out/applications.csv`. |
 | Local UI | **Working.** `jobfit ui` serves one page on 127.0.0.1: the run, a threshold you can drag with precision and recall moving under it, and the prefilter rules with a live preview of what they would cut. |
@@ -373,12 +373,12 @@ On the real corpus, after two months of accumulation:
 ```
  1266  postings evaluated
  -851  stale
- -173  no_stack_overlap
-  -55  title_excluded
+ -172  no_stack_overlap
+  -69  title_excluded
    -7  location_ineligible
    -4  junior
-  176  survive  (86% cut)
-        of the 792 the feeds still carry, 176 survive (78% cut) — this is what the band judges
+  163  survive  (87% cut)
+        of the 792 the feeds still carry, 163 survive (79% cut) — this is what the band judges
 ```
 
 Rules run cheapest-to-verify first, and the first one that fires is the one
@@ -392,7 +392,7 @@ database keeps every posting it has ever seen, and one from two months ago is
 stale forever. Counting those makes the cut ratio climb toward 100% as the
 archive grows, until the check fails on every run however good the rules are —
 which is exactly what it started doing at 86%. Measured against the 792 postings
-the last ingest actually saw, the same rules cut 78%, comfortably inside the
+the last ingest actually saw, the same rules cut 79%, comfortably inside the
 band. Both numbers are printed, because the total is the honest description of
 the database and the live figure is the one that says anything about the rules.
 
@@ -436,7 +436,7 @@ edit rather than a code change.
 ## Stage 3 — score
 
 ```bash
-jobfit score                # scores what this rubric has not judged yet
+jobfit score                # scores what this rubric has not judged yet, plus the eval set
 jobfit score --limit 5      # start small; this one costs money
 jobfit score --rescore      # judge them all again, and pay again
 ```
@@ -633,7 +633,7 @@ old and new scores never silently mix.
 
 ```bash
 pip install -e . && pip install pytest
-pytest                       # 201 tests, no network, no API calls, no tokens
+pytest                       # 203 tests, no network, no API calls, no tokens
 ```
 
 Every test runs offline. The feed parsers are pure functions over recorded

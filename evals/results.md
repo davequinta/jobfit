@@ -142,6 +142,26 @@ substantially and the threshold that was right for the old scale is no longer
 right for the new one. Do not change the threshold in the same step — measure
 the rubric change first against threshold 25, then sweep.
 
+## 2026-09-07 — two things that change what the next measurement means
+
+**The set skews DevOps, and stage 2 now removes that category.** Thirteen of the
+39 labelled postings are DevOps, SRE or infrastructure roles, and all thirteen
+are labelled `skip`. They were surviving stage 2 because the stack list carries
+Docker, CI/CD and Kubernetes — true of a full stack engineer, and enough to clear
+the zero-overlap rule. `title_exclusions` now rejects them, so in production the
+model never sees that category at all. In the eval set they remain, as thirteen
+easy true negatives out of seventeen skips. Precision measured on this set is
+therefore flattered twice over: by the 56% base rate already recorded, and by a
+third of it being a category the funnel no longer admits. The set is worth
+rebuilding on a fresh corpus before anyone quotes a number from it again.
+
+**The set had also stopped being scoreable.** All 39 postings are older than
+`max_age_days`, so stage 2 marks them stale and stage 3 skipped them — meaning
+the rubric change above could not have been measured against them at all. Stage
+3 now scores everything in the label file whatever its age, because a posting's
+age says nothing about whether the scorer judges it well. Without that, every
+eval set silently expires a fortnight after it is built.
+
 ---
 
 # Eval results

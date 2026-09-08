@@ -404,3 +404,34 @@ def test_a_posting_rejected_by_stage_two_is_never_scored(conn):
     _survives_stage_two(conn, reason="stale")
 
     assert score.postings_to_score(conn, score.prompt_version(RUBRIC)) == []
+
+
+def test_the_eval_set_stays_scoreable_after_it_goes_stale(conn, tmp_path):
+    """The eval set is a frozen corpus, and stage 2 rejects anything older than
+    two weeks. Left alone, every eval set becomes unmeasurable a fortnight after
+    it is built — and a rubric change after that can never be measured at all.
+    Labelled postings are scored on demand, whatever stage 2 says about them.
+    """
+    _store_posting(conn)
+    _survives_stage_two(conn, reason="stale")
+    labels = tmp_path / "labeled.jsonl"
+    labels.write_text(json.dumps({"url": POSTING["url"], "label": "apply", "reason": ""}) + "\n")
+
+    pending = score.postings_to_score(conn, score.prompt_version(RUBRIC), labels=labels)
+
+    assert [row["id"] for row in pending] == [POSTING["id"]]
+
+
+def test_scoring_the_eval_set_still_skips_what_this_rubric_judged(conn, tmp_path):
+    """Being in the eval set is a reason to ignore staleness, not a reason to
+    pay twice."""
+    _store_posting(conn)
+    _survives_stage_two(conn, reason="stale")
+    result = score.score_posting(FakeClient(), RUBRIC, POSTING)
+    score.store_score(conn, POSTING["id"], result, "2026-08-22T09:00:00+00:00")
+    labels = tmp_path / "labeled.jsonl"
+    labels.write_text(json.dumps({"url": POSTING["url"], "label": "apply", "reason": ""}) + "\n")
+
+    pending = score.postings_to_score(conn, score.prompt_version(RUBRIC), labels=labels)
+
+    assert pending == []
