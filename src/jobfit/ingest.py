@@ -27,7 +27,7 @@ import yaml
 
 from jobfit.db import connect, iso_now
 from jobfit.http import PoliteFetcher
-from jobfit.sources import PARSERS, Issue, Posting, normalize_field
+from jobfit.sources import PARSERS, Issue, ParseResult, Posting, normalize_field
 
 from jobfit import runtime
 

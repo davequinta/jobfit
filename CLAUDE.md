@@ -5,12 +5,18 @@ to work in this repo.
 
 ## Context
 
-This is a personal tool built under a hard deadline (2026-08-30) that doubles as
-a public portfolio piece. Both facts matter: the code will be read by engineers
-who might hire me, and it will not be maintained after October.
+This is a personal tool that doubles as a public portfolio piece. The code will
+be read by engineers who might hire me, and it will not be maintained after
+October.
+
+The deadline was 2026-08-30 and it passed with stages 1-3 working and the evals
+unlabelled — which was the one part the spec said not to cut. That got finished
+on 2026-09-07, and the measurement immediately found the queue cutting at 70
+against a scorer whose real range was 3-78. Worth remembering as the argument
+for why the evals come before polish, not after.
 
 Optimize for **legible over clever**. Someone should be able to read
-`src/score.py` in three minutes and understand the whole scoring approach.
+`src/jobfit/score.py` in three minutes and understand the whole scoring approach.
 
 ## Working agreements
 
@@ -23,10 +29,18 @@ Optimize for **legible over clever**. Someone should be able to read
   keep going with the other sources. Do not swallow exceptions.
 - **Every LLM call is testable offline.** Fixture-based tests with recorded
   responses. I should be able to run the eval suite without spending tokens.
-- **One file per stage.** `ingest.py`, `prefilter.py`, `score.py`, `draft.py`,
-  all under `src/jobfit/` so the tool is installable (`jobfit init`, `jobfit
-  ingest`). `cli.py` is argument plumbing, not a stage, and stays that way.
-  Resist splitting a stage across files until it passes 300 lines.
+- **One file per stage.** `ingest.py`, `prefilter.py`, `score.py`, all under
+  `src/jobfit/` so the tool is installable (`jobfit init`, `jobfit ingest`). A
+  fourth stage, `draft.py`, was planned and dropped — see SPEC.md.
+  `cli.py` is argument plumbing, not a stage, and stays that way; so are
+  `queue.py`, `evals.py`, `cvimport.py` and `ui.py`, which is why none of them
+  reads from another stage. Resist splitting a stage across files until it
+  passes 300 lines.
+- **The labels are mine to write.** Never generate, guess or fill in an entry in
+  `evals/labeled.jsonl`. They are the ground truth the scorer is measured
+  against; a model-written label measures the model against itself and makes
+  every number downstream meaningless. Build tools that make labelling faster —
+  do not do the labelling.
 
 ## Prompting rules
 
@@ -48,13 +62,19 @@ without any error.
 
 ## When changing the rubric
 
-1. Run `pytest evals/` and record the current precision/recall
+1. Run `jobfit eval` and record the current precision/recall. (Not
+   `pytest evals/` — there are no test files there, so it silently runs
+   nothing.)
 2. Make the change
-3. Re-run and record
-4. Append both numbers plus a one-line rationale to `evals/results.md`
+3. Re-score, then re-run `jobfit eval` and record. The re-score is not optional:
+   `prompt_version` changes with the rubric, so old scores describe the old one.
+   Stage 3 works this out itself and brings every posting back.
+4. Append both numbers plus a one-line rationale to `evals/results.md` — or pass
+   `--note`, which writes the row in the format the tool produces
 
 Never change the rubric and the threshold in the same commit. If the numbers
-move, I need to know which one caused it.
+move, I need to know which one caused it. The threshold lives in `config.yaml`
+so moving it is a one-line diff and never a code change.
 
 ## Definition of done for a stage
 
@@ -69,3 +89,5 @@ move, I need to know which one caused it.
 - "The evals are stubbed out for now"
 - Committed secrets, CV content, or queue files — check `.gitignore` before
   every commit
+- A number in the README or SPEC that was carried forward instead of re-checked
+  against the database. Every count in those files is a query someone can run

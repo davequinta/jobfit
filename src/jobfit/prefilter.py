@@ -23,6 +23,7 @@ import json
 import logging
 import re
 import sqlite3
+import sys
 from dataclasses import dataclass, field
 from datetime import datetime
 from functools import lru_cache
@@ -271,6 +272,14 @@ def main(argv: list[str] | None = None) -> int:
         summary = run(conn, profile, db.iso_now())
     finally:
         conn.close()
+
+    # "0 evaluated, 0% cut" and a zero exit says nothing went wrong when nothing
+    # happened at all. In `ingest && prefilter && score` that hides a failed
+    # ingest behind a stage that looks content.
+    if not summary.evaluated:
+        print("jobfit prefilter: no postings in the database — run `jobfit ingest` first",
+              file=sys.stderr)
+        return 2
 
     print(report(summary))
 

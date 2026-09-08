@@ -634,6 +634,8 @@ old and new scores never silently mix.
 | `ingest` exits 1 with `treat this as a format change` | More than 20% of a feed's records could not be parsed. The feed changed shape; `ingest_issues.sample` has the offending payload. |
 | `prefilter` exits 1 with `cut ratio outside the band` | The filter is eating too much or too little. Query `prefilter_verdicts` grouped by `rejected_reason` to see which rule is responsible. |
 | `score` says `is missing — run jobfit init` | You are in a directory that was never initialised, or you deleted a scaffolded file. |
+| `prefilter` exits 2 with `no postings in the database` | The database is empty. Run `jobfit ingest` — the previous one either never ran or failed. |
+| `queue` exits 2 with `nothing has been scored` | Stage 3 has not run. This is distinct from an empty queue, which means nothing cleared the threshold. |
 | `score` fails on authentication | `ANTHROPIC_API_KEY` is unset or wrong. A Claude Code or Claude.ai subscription is **not** API access. |
 | Queue is empty but postings scored | Nothing cleared the threshold. Open `jobfit ui` and drag it: if the scores cluster well below the cut, the cut is wrong, not the day. This exact failure shipped for two weeks. |
 | The page says every posting is stale | Your corpus is older than `max_age_days`. Re-run `jobfit ingest`. |
@@ -643,7 +645,7 @@ old and new scores never silently mix.
 
 ```bash
 pip install -e . && pip install pytest
-pytest                       # 210 tests, no network, no API calls, no tokens
+pytest                       # 212 tests, no network, no API calls, no tokens
 ```
 
 Every test runs offline. The feed parsers are pure functions over recorded

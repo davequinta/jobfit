@@ -198,3 +198,16 @@ def test_the_queue_command_is_reachable_from_the_cli():
     from jobfit import cli
 
     assert "queue" in cli.COMMANDS
+
+
+def test_an_unscored_database_is_an_error_not_an_empty_queue(tmp_path, monkeypatch, capsys):
+    """"Nothing cleared the bar" is a real result. "You have not scored
+    anything" is a different one, and saying the first when the second is true
+    sends you tuning a threshold that was never the problem."""
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "config.yaml").write_text("db_path: empty.db\n")
+
+    code = queue.main(["--config", "config.yaml"])
+
+    assert code == 2
+    assert "jobfit score" in capsys.readouterr().err

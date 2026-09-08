@@ -22,6 +22,7 @@ import csv
 import json
 import logging
 import sqlite3
+import sys
 from pathlib import Path
 
 
@@ -187,6 +188,13 @@ def main(argv: list[str] | None = None) -> int:
     day = args.day or db.iso_now()[:10]
     conn = runtime.open_db(args)
     try:
+        # "Nothing cleared the bar" is a real result. "Nothing has been scored"
+        # is a different one, and reporting the first when the second is true
+        # sends you tuning a threshold that was never the problem.
+        if not conn.execute("SELECT count(*) FROM scores").fetchone()[0]:
+            print("jobfit queue: nothing has been scored — run `jobfit score` first",
+                  file=sys.stderr)
+            return 2
         path = write_queue(conn, args.threshold, day)
         added = append_csv(conn, args.threshold, day)
         count = len(entries_above(conn, args.threshold))

@@ -379,3 +379,18 @@ def test_with_no_ingest_run_recorded_the_band_falls_back_to_everything(conn):
 
     assert summary.live_evaluated == 3
     assert summary.live_cut_ratio == summary.cut_ratio
+
+
+def test_an_empty_database_is_an_error_not_a_clean_run(conn, tmp_path, monkeypatch, capsys):
+    """A stage that reports "0 evaluated, 0% cut" and exits 0 has told you
+    nothing went wrong when nothing happened at all. In a cron chain that hides
+    a failed ingest behind a cheerful prefilter."""
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "config.yaml").write_text("db_path: empty.db\n")
+    (tmp_path / "stack.yaml").write_text(
+        (Path(__file__).parent.parent / "src/jobfit/templates/stack.yaml").read_text())
+
+    code = prefilter.main(["--config", "config.yaml", "--profile", "stack.yaml"])
+
+    assert code == 2
+    assert "jobfit ingest" in capsys.readouterr().err
