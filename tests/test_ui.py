@@ -152,6 +152,10 @@ def test_the_preview_agrees_with_the_stage_it_previews(conn, profile_file):
 
     assert preview["survived"] == committed.survived
     assert preview["by_reason"] == committed.by_reason
+    # The page must not show a red band while the stage exits clean.
+    assert preview["cut_ratio"] == committed.live_cut_ratio
+    assert preview["within_expected_band"] == (
+        prefilter.MIN_CUT_RATIO <= committed.live_cut_ratio <= prefilter.MAX_CUT_RATIO)
 
 
 def test_a_tightened_rule_shows_a_smaller_cut_before_it_is_saved(conn, profile_file):

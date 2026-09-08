@@ -272,8 +272,12 @@ function readRules() {
 
 function showPrefilter(summary) {
   $("cutSummary").textContent =
-    `${summary.evaluated} postings evaluated · ${summary.survived} survive · ` +
-    `${Math.round(summary.cut_ratio * 100)}% cut`;
+    `${summary.evaluated} postings the feeds still carry · ${summary.survived} survive · ` +
+    `${Math.round(summary.cut_ratio * 100)}% cut` +
+    (summary.stored > summary.evaluated
+      ? `  (${summary.stored} stored in total; older ones are stale forever and ` +
+        `would drag the ratio toward 100%)`
+      : "");
   $("band").className = "band " + (summary.within_expected_band ? "ok" : "off");
   $("band").textContent = summary.within_expected_band
     ? "Within the expected 50–85% band."

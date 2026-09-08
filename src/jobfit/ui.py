@@ -140,27 +140,38 @@ def preview_rules(conn: sqlite3.Connection, profile: prefilter.Profile, now: str
     `run` means looking costs nothing.
     """
     postings = conn.execute(
-        "SELECT id, title, description_text, location_raw, published_at FROM postings"
+        "SELECT id, title, description_text, location_raw, published_at, last_seen_at "
+        "FROM postings"
     ).fetchall()
+    latest_run = conn.execute(
+        "SELECT started_at FROM ingest_runs ORDER BY id DESC LIMIT 1").fetchone()
+    live_since = latest_run["started_at"] if latest_run else ""
 
     by_reason: dict[str, int] = {}
-    survived = 0
+    survived = live_evaluated = live_survived = 0
     for posting in postings:
+        live = posting["last_seen_at"] >= live_since
+        live_evaluated += live
         verdict = prefilter.evaluate(posting, profile, now)
         if verdict.rejected_reason:
             by_reason[verdict.rejected_reason] = by_reason.get(verdict.rejected_reason, 0) + 1
         else:
             survived += 1
+            live_survived += live
 
-    evaluated = len(postings)
+    # The ratios shown are the ones the stage's band judges — the postings the
+    # feeds still carry. Showing the whole archive's ratio would paint the page
+    # red while `jobfit prefilter` exits clean.
+    cut = 0.0 if not live_evaluated else 1 - live_survived / live_evaluated
     return {
-        "evaluated": evaluated,
-        "survived": survived,
+        "evaluated": live_evaluated,
+        "survived": live_survived,
+        "stored": len(postings),
         "by_reason": by_reason,
-        "cut_ratio": 0.0 if not evaluated else 1 - survived / evaluated,
+        "cut_ratio": cut,
         "within_expected_band": (
-            prefilter.MIN_CUT_RATIO <= (1 - survived / evaluated) <= prefilter.MAX_CUT_RATIO
-            if evaluated else False
+            prefilter.MIN_CUT_RATIO <= cut <= prefilter.MAX_CUT_RATIO
+            if live_evaluated else False
         ),
     }
 
