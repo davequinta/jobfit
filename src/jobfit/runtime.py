@@ -24,7 +24,7 @@ LOG_FORMAT = "%(asctime)s %(levelname)-7s %(message)s"
 # in a stage, because the queue cuts on it, the eval measures at it and the
 # scorer's why_not guardrail fires above it — three copies is three chances to
 # drift apart. Set from measurement, not taste: see evals/results.md.
-DEFAULT_THRESHOLD = 25
+DEFAULT_THRESHOLD = 35
 
 
 def stage_parser(description: str) -> argparse.ArgumentParser:
@@ -47,7 +47,7 @@ def threshold(args) -> int:
     """The score to cut at: `--threshold` if given, else the config's, else the default.
 
     A malformed `threshold:` in the config raises rather than falling back — a
-    typo that quietly reverts the cut to 25 is the kind of silence this project
+    typo that quietly reverts the cut to 35 is the kind of silence this project
     does not allow. A missing key is not a malformation; it means "the default".
     """
     if getattr(args, "threshold", None) is not None:

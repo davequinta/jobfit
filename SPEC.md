@@ -243,7 +243,8 @@ get cut under time pressure. Do not cut it.
    one-line reason.
 2. Run the scorer against all 40. Measure:
    - **Precision at the threshold** — of what it surfaces, how much is real?
-     (Shipped at 70, measured, moved to 25 on 2026-09-07 — `evals/results.md`.)
+     (Shipped at 70, measured, moved to 25 on 2026-09-07 and to 35 on
+     2026-09-13 — `evals/results.md`.)
    - **Recall** — of the 15 good ones, how many did it surface?
    - **Correlation on the borderline 10** — where it disagrees with me, who's right?
 3. Optimize for **precision over recall**. A false positive costs 20 minutes of

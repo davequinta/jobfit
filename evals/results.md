@@ -248,6 +248,9 @@ Mitre Media 22 → 38, Collaboration.Ai (Senior Software Engineer) 18 → 31.
 
 ### Recommendation, not applied
 
+> **Applied 2026-09-13 in 3941a1c.** The threshold is now 35; see the entry
+> "threshold 25 → 35" below. The paragraph that follows is left as it was written.
+
 The threshold is unchanged in this commit. SPEC.md weights precision over
 recall; on this set the lowest cut with no false positives is **35** —
 precision 16 of 16, recall 16 of 22 — which gives up two true positives to drop
@@ -278,6 +281,67 @@ is smaller than this table shows. A change to 35 belongs in its own commit.
 cache-read and 5,323 cache-write tokens. **$0.7665**, against $1.5112 for the same
 tokens without caching.
 
+## 2026-09-13 — threshold 25 → 35
+
+Commit 3941a1c moves the threshold to 35, applying the recommendation above in a
+commit of its own. SPEC.md's rule for the eval set decides it: optimise for
+precision over recall, because a false positive costs twenty minutes and a
+wasted application and a false negative one posting out of hundreds. The rubric
+is unchanged — still e39642e40c3c — so no posting needed re-scoring and every
+number below comes from the scores already stored.
+
+```bash
+jobfit eval --threshold 35                 # the 53 labels in evals/labeled.jsonl today
+jobfit eval --threshold 25
+git show c1349ac:evals/labeled.jsonl > "$TMPDIR/labels-c1349ac.jsonl"
+jobfit eval --labels "$TMPDIR/labels-c1349ac.jsonl" --threshold 35
+jobfit eval --labels "$TMPDIR/labels-c1349ac.jsonl" --threshold 25
+```
+
+| labels | threshold | precision | recall | FP | FN |
+|---|---|---|---|---|---|
+| 39, c1349ac | 25 | 18 of 21 | 18 of 22 | 3 | 4 |
+| 39, c1349ac | 35 | 16 of 16 | 16 of 22 | 0 | 6 |
+| 53, the file on 2026-09-13 | 25 | 23 of 28 | 23 of 30 | 5 | 7 |
+| 53, the file on 2026-09-13 | 35 | 19 of 20 | 19 of 30 | 1 | 11 |
+
+The 39-label row is the one logged in the table below, so it stays comparable
+with every earlier row. The 53-label figures are not comparable with those
+rows: they include the 14 labels added after c1349ac (in the file since
+2026-09-07) and one of the 39 relabelled since.
+
+**What 35 gives up, on the 39.** The three false positives at 25 go —
+Edfinity (34), Revenuecat (32), Tenchi Security (31) — and two true positives go
+with them:
+
+- **31** — Collaboration.Ai, Senior Software Engineer
+- **30** — Valsoft Corporation, AI-Native Full Stack Product Engineer
+
+The four false negatives that were already below 25 stay: Intellectsoft (24),
+Aker Systems (22), Base.com (22), Ci&t (22).
+
+**On the 53, at 35.** One false positive remains — Newrich Network, Senior Full
+Stack Developer - PHP Laravel (47) — and eleven false negatives: the six above,
+plus Checkr (30), 42Labs (25), Discord (18), Agilistik (15) and Valkyrie Aero (8).
+
+**What the queue carries.** Of the 163 postings stage 2 passes today, 82 score
+25 or more and 59 score 35 or more.
+
+```sql
+SELECT count(*), sum(s.fit_score >= 25), sum(s.fit_score >= 35)
+  FROM scores s JOIN prefilter_verdicts v ON v.posting_id = s.posting_id
+ WHERE v.rejected_reason IS NULL AND s.prompt_version = 'e39642e40c3c';
+-- 163|82|59
+```
+
+The caveats of the 2026-09-13 measurement all still apply: n is 39 (or 53), no
+label is borderline, the base rate flatters precision, two of the three false
+positives removed are DevOps roles stage 2 already rejects in production, and no
+posting has been scored twice, so a move of a few points near the cut is not
+separated from noise. The queue written earlier on 2026-09-13 at 25 appended 82
+rows to `out/applications.csv`; it is append-only, so the 23 of them between 25
+and 35 stay there.
+
 ---
 
 # Eval results
@@ -292,3 +356,4 @@ Counts, not ratios: with a forty-posting set the third decimal is noise.
 | 2026-09-07 | f227c97dba81 | 70 | 1 of 1 | 1 of 22 | 0 | 21 | baseline: the threshold the tool shipped with |
 | 2026-09-07 | f227c97dba81 | 25 | 13 of 15 | 13 of 22 | 2 | 9 | swept on the same stored scores; no re-score |
 | 2026-09-13 | e39642e40c3c | 25 | 18 of 21 | 18 of 22 | 3 | 4 | rubric e39642e40c3c: examples now sum; explicit no-adjustment rule |
+| 2026-09-13 | e39642e40c3c | 35 | 16 of 16 | 16 of 22 | 0 | 6 | threshold 25 -> 35 (3941a1c): precision over recall |

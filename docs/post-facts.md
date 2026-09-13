@@ -341,3 +341,56 @@ print(sum(1 for n in g.values() if n > 1), sum(n - 1 for n in g.values() if n > 
 | Whether the +6 median change exceeds run-to-run variation | No posting was scored twice under the same rubric |
 | The first re-score attempt failed with `401 authentication_error` | The run's terminal output, which was not saved. The database confirms only that it wrote no row |
 | hn.algolia.com serves no robots.txt; Get on Board allows `/` | Fetched 2026-09-12 (HTTP 404; `Allow: /`); external and can change |
+
+## 10. Threshold 25 → 35
+
+| Fact | Value | Source |
+|---|---|---|
+| Changed in | commit 3941a1c, 2026-09-13 17:20:23 -0600 | `git log -1 --format='%h %ad' --date=iso 3941a1c` |
+| SPEC rule it follows | "Optimize for **precision over recall**" | `SPEC.md`, section "Evals — do not skip this", point 3 |
+| Recommended before it was applied | 35, the lowest cut with no false positives on the 39 labels of c1349ac | `evals/results.md`, 2026-09-13 entry, "Recommendation, not applied" |
+
+### The eval at both thresholds, rubric e39642e40c3c
+
+```bash
+jobfit eval --threshold 35        # the 53 labels in evals/labeled.jsonl today
+jobfit eval --threshold 25
+git show c1349ac:evals/labeled.jsonl > "$TMPDIR/labels-c1349ac.jsonl"   # jobfit eval needs a regular file
+jobfit eval --labels "$TMPDIR/labels-c1349ac.jsonl" --threshold 35
+jobfit eval --labels "$TMPDIR/labels-c1349ac.jsonl" --threshold 25
+```
+
+| labels | threshold | precision | recall |
+|---|---|---|---|
+| 53, `evals/labeled.jsonl` on 2026-09-13 | 35 | 19 of 20 | 19 of 30 |
+| 53, `evals/labeled.jsonl` on 2026-09-13 | 25 | 23 of 28 | 23 of 30 |
+| 39, c1349ac | 35 | 16 of 16 | 16 of 22 |
+| 39, c1349ac | 25 | 18 of 21 | 18 of 22 |
+
+### What each threshold passes today
+
+```sql
+-- Q10: the 163 postings stage 2 passes today, all scored under e39642e40c3c
+SELECT count(*), sum(s.fit_score >= 25), sum(s.fit_score >= 35), sum(s.fit_score >= 70)
+  FROM scores s JOIN prefilter_verdicts v ON v.posting_id = s.posting_id
+ WHERE v.rejected_reason IS NULL AND s.prompt_version = 'e39642e40c3c';
+-- 163|82|59|6
+```
+
+### Scores of 50 or more on 2026-08-23
+
+```sql
+-- Q11 (snapshot): rubric f227c97dba81, 135 rows
+SELECT count(*), group_concat(fit_score, ', ')
+  FROM (SELECT fit_score FROM scores
+         WHERE prompt_version = 'f227c97dba81' AND fit_score >= 50 ORDER BY fit_score);
+-- 6|52, 58, 58, 60, 68, 78
+```
+
+| Posting | Score (f227c97dba81, snapshot) | In `queue/2026-08-23.md` | Label at c1349ac |
+|---|---|---|---|
+| Cosuno — Senior Full Stack Developer (TypeScript) | 78 | line 7 | apply |
+| Sur — Full Stack Developer | 68 | line 31 | apply |
+
+Source for the two rows: `git show c1349ac:evals/labeled.jsonl`, the entries with
+`company` "Cosuno" and "Sur", joined on `url` to `scores` in the snapshot.
