@@ -24,9 +24,11 @@ You do not edit files. You report; the main thread decides what to change.
   `source_companies`.
 - `config.yaml` — threshold, feeds, rate limit.
 - `evals/labeled.jsonl` and `evals/results.md` — labels and dated measurements.
-- `src/jobfit/templates/score_system.md` — the rubric. Its current hash is what
-  `score.prompt_version()` returns; compare against `scores.prompt_version`.
-- `tests/` — for claims like "212 tests": `.venv/bin/pytest --collect-only -q | tail -1`.
+- `src/jobfit/templates/score_system.md` — the rubric. `scores.prompt_version` is a
+  hash of the whole cached prefix (rubric + CV + stack profile), not the rubric
+  alone. Current version, offline:
+  `.venv/bin/python -c "from jobfit import score; print(score.prompt_version(score.load_rubric(score.resolve_rubric_path(None), 'profile/cv.md', 'profile/stack.yaml')))"`
+- `tests/` — for a test count: `.venv/bin/pytest --collect-only -q | tail -1`.
   Collecting is fine; do not run the suite.
 - `git log` — for dated claims ("shipped", "dropped 2026-09-07").
 
@@ -36,10 +38,10 @@ You do not edit files. You report; the main thread decides what to change.
    model name, hash, file path, CLI command and flag. Also catch number words
    ("sixteen", "thirteen of the 39").
 2. Classify each claim before checking it:
-   - **Live** — describes the current state ("1,266 postings stored",
-     "163 survive"). Must match the database now.
-   - **Dated** — explicitly tied to a run or date ("the run of 2026-08-23",
-     "measured 2026-09-07 on 39 labels"). Must match that run, not today. Verify
+   - **Live** — describes the current state ("N postings stored", "N survive").
+     Must match the database now.
+   - **Dated** — explicitly tied to a run or date ("the run of <date>",
+     "measured <date> on N labels"). Must match that run, not today. Verify
      it where the data still allows (e.g. `scores` rows for that
      `prompt_version`), and flag it if the sentence reads as live but is dated.
    - **Structural** — commands, flags, file paths, config keys, table names.

@@ -34,8 +34,10 @@ Optimize for **legible over clever**. Someone should be able to read
   fourth stage, `draft.py`, was planned and dropped — see SPEC.md.
   `cli.py` is argument plumbing, not a stage, and stays that way; so are
   `queue.py`, `evals.py`, `cvimport.py` and `ui.py`, which is why none of them
-  reads from another stage. Resist splitting a stage across files until it
-  passes 300 lines.
+  passes one stage's output to another in memory. Calling a stage's pure
+  function without committing the result is not chaining — `ui.py` previews
+  rules through `prefilter.evaluate`. Resist splitting a stage across files
+  until it passes 300 lines.
 - **The labels are mine to write.** Never generate, guess or fill in an entry in
   `evals/labeled.jsonl`. They are the ground truth the scorer is measured
   against; a model-written label measures the model against itself and makes
@@ -45,9 +47,12 @@ Optimize for **legible over clever**. Someone should be able to read
 ## Prompting rules
 
 The scoring prompt lives in `src/jobfit/templates/score_system.md` as a plain
-markdown file, not embedded in Python. `jobfit init` copies it to
-`prompts/score_system.md` in the working directory, which is what gets tuned. It gets versioned and diffed like code, because prompt
-changes are the changes most likely to break the evals.
+markdown file, not embedded in Python. In this repo that is the file to tune: it
+gets versioned and diffed like code, because prompt changes are the changes most
+likely to break the evals. `jobfit init` copies it to `prompts/score_system.md`
+for someone who installs the tool, and `jobfit score` prefers that copy when it
+exists — which is why `prompts/` is gitignored here. Don't create one in this
+repo; it would be a second rubric that silently wins.
 
 Structure is fixed and required for prompt caching:
 
@@ -68,7 +73,8 @@ without any error.
 2. Make the change
 3. Re-score, then re-run `jobfit eval` and record. The re-score is not optional:
    `prompt_version` changes with the rubric, so old scores describe the old one.
-   Stage 3 works this out itself and brings every posting back.
+   It hashes the whole cached prefix, so editing the CV or stack profile does
+   the same. Stage 3 works this out itself and brings every posting back.
 4. Append both numbers plus a one-line rationale to `evals/results.md` — or pass
    `--note`, which writes the row in the format the tool produces
 
