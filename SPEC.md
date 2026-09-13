@@ -253,7 +253,7 @@ get cut under time pressure. Do not cut it.
 
 - Python 3.11+, `uv` for deps
 - `anthropic` SDK
-- `httpx`, `feedparser`, `selectolax` for ingest
+- `httpx`, `feedparser`, `selectolax` for ingest; `protego` for robots.txt
 - SQLite via stdlib `sqlite3` — no ORM
 - `pydantic` for the score schema
 - `pytest` for the eval harness
@@ -267,6 +267,14 @@ sat unnoticed for two weeks because a threshold in a config file is invisible.
 `jobfit ui` serves one page from the standard library on 127.0.0.1 — no
 framework, no dependency, no deploy, gone when you close it. The rule it was
 protecting against was a hosted dashboard, and that stays out of scope.
+
+*Amended 2026-09-12.* CI/CD stayed out of scope until a test was red on every
+Python before the one on my laptop. The robots.txt matcher ignored `*` on 3.11 to
+3.13 — so `Disallow: /api/*` blocked nothing — while the laptop's 3.14 parser read
+it, the suite passed locally and the README said 212 tests. `.github/workflows/ci.yml`
+runs the offline suite on 3.11 and 3.12 on every push: no secrets, no API calls,
+no deploy. The rule was protecting against deployment machinery, and CD, Docker
+and cloud deploy stay out of scope.
 
 ---
 
@@ -297,7 +305,8 @@ Listed because each of these will feel like a good idea around day 5:
 - Multi-user support, auth, or anything that implies other people using it
 - LinkedIn scraping (against their ToS for profile data, and the account risk is
   not worth it)
-- Deployment to AWS, containerization, CI/CD
+- Deployment to AWS, containerization, CD. (CI that runs the offline tests is in
+  — see Stack.)
 - Email/Slack notifications
 - Company research enrichment (Glassdoor, Crunchbase, funding data)
 - An agent loop for scoring — see the design decision above
