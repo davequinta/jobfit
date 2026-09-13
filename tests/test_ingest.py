@@ -265,6 +265,81 @@ def test_robots_allows_everything_when_the_file_is_missing():
     assert http.robots_allows(None, "https://example.com/anything", "jobfit/0.1")
 
 
+def test_robots_a_trailing_dollar_anchors_the_end_of_the_path():
+    """Torre's rule, which is why Torre is not a source: the landing page yes,
+    every actual search no."""
+    robots = "User-agent: *\nAllow: /search/jobs$\nDisallow: /search/jobs?*\n"
+    assert http.robots_allows(robots, "https://example.com/search/jobs", "jobfit/0.1")
+    assert not http.robots_allows(robots, "https://example.com/search/jobs?q=python", "jobfit/0.1")
+
+
+def test_robots_a_longer_allow_beats_a_wildcard_disallow():
+    robots = "User-agent: *\nDisallow: /api/*\nAllow: /api/public/jobs\n"
+    assert http.robots_allows(robots, "https://example.com/api/public/jobs", "jobfit/0.1")
+    assert not http.robots_allows(robots, "https://example.com/api/private", "jobfit/0.1")
+
+
+def test_robots_allow_wins_a_tie_with_disallow():
+    robots = "User-agent: *\nDisallow: /jobs\nAllow: /jobs\n"
+    assert http.robots_allows(robots, "https://example.com/jobs", "jobfit/0.1")
+
+
+def test_robots_a_group_naming_this_tool_overrides_the_wildcard_group():
+    agent = "jobfit/0.1 (+https://github.com/davequinta/jobfit)"
+    named_allows = "User-agent: *\nDisallow: /\n\nUser-agent: jobfit\nAllow: /\n"
+    named_blocks = "User-agent: *\nAllow: /\n\nUser-agent: jobfit\nDisallow: /\n"
+    assert http.robots_allows(named_allows, "https://example.com/jobs", agent)
+    assert not http.robots_allows(named_blocks, "https://example.com/jobs", agent)
+
+
+def test_robots_a_group_for_another_crawler_does_not_apply():
+    """Get on Board and Remote OK block ClaudeBot, GPTBot and CCBot by name and
+    allow everyone else. This tool is none of those crawlers."""
+    robots = "User-agent: ClaudeBot\nDisallow: /\n\nUser-agent: *\nAllow: /\n"
+    assert http.robots_allows(robots, "https://example.com/api", "jobfit/0.1")
+
+
+class RobotsFetcher(FixtureFetcher):
+    """A fixture fetcher that also answers `allowed`, from a robots.txt body."""
+
+    def __init__(self, responses, robots_txt: str):
+        super().__init__(responses)
+        self.robots_txt = robots_txt
+
+    def allowed(self, url: str) -> bool:
+        return http.robots_allows(self.robots_txt, url, "jobfit/0.1")
+
+
+def test_a_robots_exemption_is_what_lets_remotive_through(conn):
+    """Remotive's robots.txt says `Disallow: /api/*`. Before Python 3.14 the
+    standard library read `*` literally, that line blocked nothing, and the
+    exemption in config.yaml was decorative. Now it is the only reason the feed
+    is fetched."""
+    robots = "User-agent: *\nDisallow: /api/*\n"
+    exempt = ingest.Feed(name="remotive", kind="remotive_json", url=REMOTIVE_URL,
+                         robots_exemption="documented public API")
+    fetcher = RobotsFetcher({REMOTIVE_URL: fixture("remotive_ok.json")}, robots)
+    assert not fetcher.allowed(REMOTIVE_URL)
+
+    summary = ingest.ingest(conn, [exempt], fetcher, NOW)
+
+    assert fetcher.calls == [REMOTIVE_URL]
+    assert summary.inserted > 0
+
+
+def test_without_the_exemption_a_disallowed_feed_is_skipped_and_recorded(conn):
+    robots = "User-agent: *\nDisallow: /api/*\n"
+    feed = ingest.Feed(name="remotive", kind="remotive_json", url=REMOTIVE_URL)
+    fetcher = RobotsFetcher({REMOTIVE_URL: fixture("remotive_ok.json")}, robots)
+
+    summary = ingest.ingest(conn, [feed], fetcher, NOW)
+
+    assert fetcher.calls == []
+    assert summary.status == "degraded"
+    kinds = [row["kind"] for row in conn.execute("SELECT kind FROM ingest_issues")]
+    assert kinds == ["robots_blocked"]
+
+
 def test_rate_limiter_waits_between_requests_to_the_same_host():
     clock = _FakeClock()
     limiter = http.RateLimiter(min_interval=1.0, monotonic=clock.now, sleep=clock.sleep)

@@ -8,10 +8,10 @@ from __future__ import annotations
 
 import logging
 import time
-import urllib.robotparser
 from urllib.parse import urlsplit
 
 import httpx
+from protego import Protego
 
 log = logging.getLogger("jobfit.http")
 
@@ -40,12 +40,18 @@ class RateLimiter:
 
 
 def robots_allows(robots_txt: str | None, url: str, user_agent: str) -> bool:
-    """Evaluate a robots.txt body against a URL. Missing file means allowed."""
+    """Evaluate a robots.txt body against a URL. Missing file means allowed.
+
+    Matching follows RFC 9309, the way Google reads it: `*` matches any run of
+    characters, a trailing `$` anchors the end, the longest matching rule wins,
+    and Allow beats Disallow on a tie. This used to be the standard library's
+    robotparser, which before Python 3.14 reads `*` as a literal character — so
+    `Disallow: /api/*` did not block `/api/jobs`, and every wildcard rule was
+    ignored without a word while the README said robots.txt was honoured.
+    """
     if robots_txt is None:
         return True
-    parser = urllib.robotparser.RobotFileParser()
-    parser.parse(robots_txt.splitlines())
-    return parser.can_fetch(user_agent, url)
+    return Protego.parse(robots_txt).can_fetch(url, user_agent)
 
 
 class PoliteFetcher:

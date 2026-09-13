@@ -294,7 +294,16 @@ is reported rather than stored with the whole string as its title.
 
 Requests are serialized at one per second per host, with a real User-Agent whose
 contact address comes from `JOBFIT_CONTACT` in `.env` so it stays out of the
-repo. `robots.txt` is fetched once per host and honoured.
+repo. `robots.txt` is fetched once per host and honoured, wildcards included:
+`*` and a trailing `$` are patterns and the longest matching rule wins, per RFC
+9309, through `protego`. The standard library's parser read `*` literally before
+Python 3.14, so until 2026-09-12 a rule like Remotive's `Disallow: /api/*`
+blocked nothing on 3.11 or 3.12. Two known gaps: the check runs on each feed's
+configured URL, and Hacker News has none (`url: auto`), so its check fails to
+fetch anything and allows with a warning; and the requests made after a feed is
+cleared — the Hacker News thread lookup, Get on Board's per-company lookups — are
+not checked at all. Neither changes a verdict today: `hn.algolia.com` serves no
+`robots.txt`, and Get on Board's allows `/`.
 
 | Source | Postings | Access | robots.txt |
 |---|---|---|---|
@@ -645,7 +654,7 @@ old and new scores never silently mix.
 
 ```bash
 pip install -e . && pip install pytest
-pytest                       # 212 tests, no network, no API calls, no tokens
+pytest                       # 219 tests, no network, no API calls, no tokens
 ```
 
 Every test runs offline. The feed parsers are pure functions over recorded
