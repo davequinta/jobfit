@@ -1,0 +1,30 @@
+# Runs the offline test suite on every push and pull request.
+#
+# No secrets, no network beyond installing dependencies, no API calls, no
+# deploy: the suite is fixture-based by design, so a runner needs nothing a
+# fresh clone does not have. The matrix exists because the robots.txt matcher
+# was green on the laptop's Python 3.14 and red on 3.11 and 3.12 for weeks.
+
+name: ci
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - run: pip install -e . pytest
+      - run: pytest
