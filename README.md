@@ -562,9 +562,19 @@ mixing two generations of results.
 jobfit queue                      # threshold 25 by default — see evals/results.md
 jobfit queue --threshold 40       # narrow it for one run
 jobfit queue --day 2026-08-22     # re-render a specific day
+jobfit queue --any-rubric         # include scores from older rubrics too
 ```
 
 Two artifacts, neither of which touches the database — re-running is always safe.
+
+**What reaches the queue.** A posting needs a score at or above the threshold,
+a stage 2 verdict that passed it, and a score from the rubric stage 3 would use
+today. The corpus keeps every posting it has ever seen, so without the second
+rule a job from two months ago sits at the top of the queue forever; without the
+third the list mixes two generations of verdict, which is what `prompt_version`
+exists to prevent. Whatever those rules leave out is counted and named in the
+command's output, never dropped quietly — and `--any-rubric` queues every
+generation when that is what you want.
 
 **`queue/YYYY-MM-DD.md`** — ranked, best first, designed to be read top to bottom
 in about thirty minutes. Every entry carries what a skip-or-apply decision needs:
@@ -611,9 +621,11 @@ hidden. `sqlite3 data/jobfit.db` and:
 SELECT (SELECT count(*) FROM postings) AS ingested,
        (SELECT count(*) FROM prefilter_verdicts WHERE rejected_reason IS NULL) AS survived,
        (SELECT count(*) FROM scores) AS scored,
-       (SELECT count(*) FROM scores WHERE fit_score >= 25) AS queued;
+       (SELECT count(*) FROM scores WHERE fit_score >= 25) AS at_or_above_25;
 -- 1266 | 163 | 298 | 133
--- scored includes 96 stale postings still on the previous rubric; 30 of them are in queued
+-- scored includes 96 stale postings still on the previous rubric. `jobfit queue`
+-- carries 82 of the 133: stage 2 now rejects the other 51, 30 of them on the
+-- previous rubric and 21 on the current one
 
 -- Why a posting was thrown away, with the exact phrase that did it
 SELECT p.title, v.rejected_reason, v.detail
@@ -660,8 +672,9 @@ old and new scores never silently mix.
 | `score` says `is missing — run jobfit init` | You are in a directory that was never initialised, or you deleted a scaffolded file. |
 | `prefilter` exits 2 with `no postings in the database` | The database is empty. Run `jobfit ingest` — the previous one either never ran or failed. |
 | `queue` exits 2 with `nothing has been scored` | Stage 3 has not run. This is distinct from an empty queue, which means nothing cleared the threshold. |
+| `queue` exits 2 with `cannot read the rubric` | The queue keeps only scores from the current rubric, and working that out needs the files `jobfit score` reads — the rubric, `profile/cv.md` and `profile/stack.yaml`. Point `--cv` and `--profile` at the ones you scored with, or pass `--any-rubric`. |
 | `score` fails on authentication | `ANTHROPIC_API_KEY` is unset or wrong. A Claude Code or Claude.ai subscription is **not** API access. |
-| Queue is empty but postings scored | Nothing cleared the threshold. Open `jobfit ui` and drag it: if the scores cluster well below the cut, the cut is wrong, not the day. This exact failure shipped for two weeks. |
+| Queue is empty but postings scored | `jobfit queue` prints why. The scores come from an older rubric: run `jobfit score`. Stage 2 now rejects those postings, usually as stale: run `jobfit ingest` for fresh ones. Stage 2 has not judged them: run `jobfit prefilter`. If it names none of those, nothing cleared the threshold: open `jobfit ui` and drag it — if the scores cluster well below the cut, the cut is wrong, not the day; this exact failure shipped for two weeks. |
 | The page says every posting is stale | Your corpus is older than `max_age_days`. Re-run `jobfit ingest`. |
 | `sum(cache_read_tokens)` is 0 | Prompt caching broke. Run the tests: three of them exist specifically to catch this. |
 
@@ -669,7 +682,7 @@ old and new scores never silently mix.
 
 ```bash
 pip install -e . && pip install pytest
-pytest                       # 224 tests, no network, no API calls, no tokens
+pytest                       # 235 tests, no network, no API calls, no tokens
 ```
 
 Every test runs offline. The feed parsers are pure functions over recorded
