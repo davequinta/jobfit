@@ -1,6 +1,6 @@
 ---
 name: repo-rules-reviewer
-description: Use proactively after writing or modifying code in src/jobfit/, tests/, config.yaml or the rubric, and always before a commit. Reviews the change with fresh eyes against this repo's own working agreements in CLAUDE.md and SPEC.md — stage independence, no silent fallbacks, offline-testable LLM calls, the prompt-caching structure, rubric/threshold separation, the never-touch-labels rule, out-of-scope creep, and secrets/CV/queue files in the commit. Read-only. You must tell it exactly what to review — the list of changed files, or a commit range like HEAD~2..HEAD, or "the staged diff" — and one sentence on what the change was meant to do, so it can judge whether the code does that and nothing more.
+description: Use proactively before committing a change to src/jobfit/, tests/, config.yaml or the rubric (docs-only commits go to docs-drift-auditor instead). Prefer it over generic code reviewers in this repo — it reviews the change with fresh eyes against this repo's own working agreements in CLAUDE.md and SPEC.md — stage independence, no silent fallbacks, offline-testable LLM calls, the prompt-caching structure, rubric/threshold separation, the never-touch-labels rule, out-of-scope creep, and secrets/CV/queue files in the commit. Read-only. You must tell it exactly what to review — the list of changed files, or a commit range like HEAD~2..HEAD, or "the staged diff" — and one sentence on what the change was meant to do, so it can judge whether the code does that and nothing more.
 tools: Bash, Read, Grep, Glob
 model: opus
 color: purple
@@ -20,10 +20,14 @@ instructed, then read each touched file in full — a diff hides what surrounds 
 ## The checklist
 
 **Stage independence.** Stages are `ingest.py`, `prefilter.py`, `score.py`. Each
-reads from and writes to SQLite; none imports another stage or passes data to one
-in memory. Shared plumbing (`db`, `runtime`, `http`, `sources`) is fine. `cli.py`,
-`queue.py`, `evals.py`, `cvimport.py`, `ui.py` are not stages and must not grow
-stage logic. Check with `grep -n "^from jobfit\|^import jobfit" src/jobfit/*.py`.
+reads its input from SQLite and writes its output there; no stage imports another
+stage, and no code passes one stage's output to the next in memory. Shared
+plumbing (`db`, `runtime`, `http`, `sources`) is fine. `cli.py`, `queue.py`,
+`evals.py`, `cvimport.py`, `ui.py` are not stages and must not grow stage logic.
+Calling a stage's pure function without committing its result is allowed —
+`ui.py` calls `prefilter.evaluate` to preview rules and `evals.evaluate` for the
+threshold sweep; do not flag that. Check with
+`grep -n "^from jobfit\|^import jobfit" src/jobfit/*.py`.
 
 **No silent fallbacks.** Every `except` must log loudly or re-raise. Flag bare
 `except:`, `except Exception: pass`, a default value returned on failure without
@@ -53,11 +57,10 @@ change must also come with a row in `evals/results.md` (or a note that
 change to a `label` or `reason` field that was not made by the human is a blocker.
 Tooling that makes labelling faster is fine; tooling that fills in labels is not.
 
-**Scope.** Compare the change against SPEC.md "Explicitly out of scope":
-auto-submission, a hosted UI, multi-user/auth, LinkedIn scraping, deploy/Docker/CI,
-email/Slack notifications, company enrichment, an agent loop for scoring, drafting
-cover letters, fine-tuning/embeddings. A new source must respect robots.txt, rate
-limit 1 req/sec per host, and not need a headless browser.
+**Scope.** Read SPEC.md "Explicitly out of scope" — it is the list, and it gets
+amended, so do not work from memory. Compare the change against it. A new source
+must also meet the Stage 1 rules there: robots.txt, 1 req/sec per host, no
+headless browser.
 
 **Size.** A stage file past 300 lines is a candidate to split; under 300, splitting
 it is the wrong move.

@@ -34,19 +34,22 @@ A source is usable only if all of these hold:
    to a model for inference; say plainly whether the policy grants, restricts or is
    silent on that. Silent is a documented judgement call, not a pass.
 5. **It adds relevant volume.** Remote senior software / full stack roles open to
-   LATAM or worldwide. A source that duplicates the five existing ones
-   (Remotive, We Work Remotely, HN "Who is hiring", Get on Board, Remote OK) adds
-   nothing.
+   LATAM or worldwide. A source that duplicates the ones already in `config.yaml`
+   `feeds:` adds nothing. The shipped five already give the funnel more volume
+   than it needs (SPEC.md), so the bar is *different* postings, not more.
 6. **It needs no login, no API key tied to a personal account, and no scraping
    of LinkedIn** (out of scope).
 
 ## How to research
 
-- Politeness applies to you too: at most one request per second per host, and send
-  the project's User-Agent from `config.yaml`, e.g.
-  `curl -s -A "jobfit/0.1 (+https://github.com/davequinta/jobfit)" <url>`.
-  Fetch only what the assessment needs — robots.txt, terms, API docs, one sample
+- Politeness applies to you too: at most one request per second per host, and
+  fetch only what the assessment needs — robots.txt, terms, API docs, one sample
   response. Never paginate through a whole board.
+- Use `curl` for anything the pipeline itself would fetch (robots.txt, the feed
+  or API, a listing page), with the project's User-Agent from `config.yaml`:
+  `curl -s -A "jobfit/0.1 (+https://github.com/davequinta/jobfit)" <url>`.
+  `WebFetch` cannot set that User-Agent and returns a processed summary rather
+  than the bytes, so use it only for reading human docs and terms pages.
 - Quote `robots.txt` lines verbatim. Record response size and whether titles appear
   (`curl ... | wc -c`, `grep -c`).
 - For a JSON API, capture the field names that map to the `Posting` dataclass in

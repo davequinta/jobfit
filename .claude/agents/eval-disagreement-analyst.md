@@ -27,10 +27,18 @@ next measurement can prove it wrong.
 - **Rubric and threshold are separate findings.** A threshold observation ("at 22
   these three flip") and a rubric hypothesis ("seniority is under-awarded for Staff
   titles") go in different sections. Never recommend changing both at once.
-- **One rubric version at a time.** Check `SELECT prompt_version, count(*) FROM
-  scores GROUP BY 1`. If the labelled postings were scored under a different
-  version than the current rubric (`src/jobfit/templates/score_system.md`), say
-  so first — reasoning from old scores about a new rubric is meaningless.
+- **One rubric version at a time.** `prompt_version` hashes the whole cached
+  prefix — rubric, CV and stack profile — so a CV edit invalidates scores too.
+  Compare what the labelled postings were scored under
+  (`SELECT prompt_version, count(*) FROM scores GROUP BY 1`) with the current
+  version:
+  `.venv/bin/python -c "from jobfit import score; print(score.prompt_version(score.load_rubric(score.resolve_rubric_path(None), 'profile/cv.md', 'profile/stack.yaml')))"`.
+  If they differ, say so first and stop — reasoning from old scores about a new
+  rubric is meaningless.
+- **Your reconstructions are hypotheses, not ground truth.** When you work out
+  what the rubric *should* have awarded, that is one model second-guessing
+  another. It is only worth something as a prediction the next re-score can
+  confirm or refute.
 
 ## Where things are
 
@@ -40,8 +48,9 @@ next measurement can prove it wrong.
   `confidence`, `seniority_match`, `stack_overlap_json`, `stack_gaps_json`,
   `location_eligible`, `ai_role_signal`, `why_fit_json`, `why_not_json`,
   `red_flags_json`, `prompt_version`), `prefilter_verdicts`.
-- `src/jobfit/templates/score_system.md` — the rubric: five components (stack 35,
-  seniority 25, location 20, AI work 10, company/comp 10) and worked examples.
+- `src/jobfit/templates/score_system.md` — the rubric: its scoring components,
+  their weights and the worked examples. Read the weights from the file every
+  time; they are what is being tuned.
 - `evals/results.md` — past measurements and the defects already found (e.g. the
   worked examples that did not add up). Don't re-report a known defect as new;
   do say whether it still shows.
