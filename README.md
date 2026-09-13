@@ -24,12 +24,15 @@ Four commands, run in order, each reading what the last one wrote:
     ↓
   score     135        $1.31    one structured LLM call each, against your CV
     ↓
-  queue      45        free     ranked markdown you read, plus a tracking CSV
+  queue       5        free     ranked markdown you read, plus a tracking CSV
 ```
 
 Those are real numbers from the run of 2026-08-23, measured end to end, not an
-illustration. The corpus has grown since — 1,266 postings stored, 163 surviving
-stage 2 — and was re-scored under the current rubric on 2026-09-13. What you end up
+illustration. The queue file written that day lists 5 postings, down to a score
+of 58; at the shipped threshold of 70 the same scores give 1, and at the
+threshold of 25 set on 2026-09-07 they give 45. The corpus has grown since —
+1,266 postings stored, 163 surviving stage 2 — and on 2026-09-13 all 163 were
+scored under the current rubric, 82 of them at or above 25. What you end up
 reading is `queue/YYYY-MM-DD.md`: postings best first, each with its score, the
 link, three bullets on why it fits and one to three on why it might not. Half an
 hour of reading instead of a week of it.
@@ -49,8 +52,9 @@ pipeline you can tune and a script you rerun from the top and wait.
 
 **Every rejection is recorded with the phrase that caused it.** A filter that
 quietly eats good postings looks exactly like a quiet week. `prefilter_verdicts`
-stores the reason and the matched text for all 711 rejections, so the filter can
-be audited instead of trusted — which is how a rule that claimed 173 of 211
+stores the reason and the matched text for every rejection (711 in the
+2026-08-23 run: 846 postings less the 135 that survived), so the filter can be
+audited instead of trusted — which is how a rule that claimed 173 of 211
 postings required Go got caught. (`LIKE '%Go%'` matches "going" and "Google".)
 
 **The scorer is measured, not trusted.** 39 postings were hand-labelled blind —
@@ -185,8 +189,11 @@ src/jobfit/
   Not stages                  cli.py  cvimport.py  evals.py  ui.py
   Data                        schema.sql  templates/  templates/ui.html
 
+Tracked here, and written for you by jobfit init
+  config.yaml                                                ← jobfit init
+
 Created by you, gitignored
-  config.yaml   profile/stack.yaml   profile/cv.md          ← jobfit init
+  profile/stack.yaml   profile/cv.md                        ← jobfit init
   prompts/score_system.md   .env                            ← jobfit init
   data/jobfit.db                                            ← jobfit ingest
   queue/2026-08-22.md   out/applications.csv                ← jobfit queue
@@ -234,12 +241,13 @@ re-scored.
 **A republished posting is caught too.** The key above is what the spec asked
 for, and a board defeats it by reissuing the same job at `…-python-react-ai` and
 then `…-python-react-ai-1`: different canonical URL, different key, two rows.
-Sixteen of the first 846 postings were one job twice, and one of them reached
-the eval set and counted twice toward recall. A second check matches on source,
-company and title, which is a judgement rather than a hash — two roles really
-can share a title — so every merge writes a `republished` row to
-`ingest_issues` naming both URLs. Merging across *sources* is deliberately not
-done: two boards carrying one job are two listings with different text.
+Among the first 846 postings, ten company-and-title pairs within a source
+appeared more than once — sixteen extra rows — and one of them reached the eval
+set and counted twice toward recall. A second check matches on source, company
+and title, which is a judgement rather than a hash — two roles really can share
+a title — so every merge writes a `republished` row to `ingest_issues` naming
+both URLs. Merging across *sources* is deliberately not done: two boards
+carrying one job are two listings with different text.
 
 **The upstream record is kept verbatim** in `postings.raw_json`. Normalization is
 a guess about someone else's schema; keeping the original means a wrong guess
@@ -335,13 +343,16 @@ freeform comments with a loose `Company | Role | Location` convention. The
 monthly thread id is discovered at run time rather than configured, because a
 hard-coded id goes stale after four weeks.
 
-Auditing the first HN run found 19 of 243 comments dropped as "not a posting",
-and nearly all of them were real jobs that simply open with a sentence —
-"Sumble is the newco from the founders of Kaggle. We are hiring…". The parser
-now recovers the company from the words before the first verb, gated on the
-comment containing a hiring signal at all, because thread chatter parses just as
-cleanly as a job ad. That took the drop rate from 7.8% to 5.3%, and what remains
-is mostly `[flagged]`.
+Auditing the first HN run found 19 of 243 comments dropped as "not a posting".
+Many were real jobs that simply open with a sentence — "Sumble is the newco from
+the founders of Kaggle. We are hiring…" — alongside job seekers' posts and two
+`[flagged]` comments. The parser now takes the words before the first verb as
+the company, gated on the comment containing a hiring signal at all, because
+thread chatter parses just as cleanly as a job ad; for three of the six comments
+that recovered, those words are a sentence fragment rather than a name. Re-run
+on the same thread four minutes later, it dropped 13 comments where it had
+dropped 19 — from 7.8% to 5.3% of the 243 comments the first run read — and 2 of
+the 13 that remain are `[flagged]`.
 
 **LinkedIn is deliberately absent.** Scraping it is against their terms for
 profile data, they detect and block it, and what you risk is the professional
@@ -516,10 +527,11 @@ Measured, not extrapolated: the 135 postings scored on 2026-08-23, on
 
 **Caching works.** 76% of the prompt tokens billed were cache reads. The same
 run with the breakpoint removed would have cost $2.47, so caching paid for 47%
-of it. The cached prefix is ~4,880 tokens per call — rubric, CV, stack profile —
-which clears Sonnet's 2,048-token minimum comfortably. `cache_read_tokens` is
-stored on every score for exactly this reason: a breakpoint broken by a stray
-timestamp shows up as a column of zeros rather than as a 10x invoice.
+of it. The cached prefix is 5,109 tokens per call — rubric, CV, stack profile,
+the same count on every row of that run — which clears Sonnet's 2,048-token
+minimum comfortably. `cache_read_tokens` is stored on every score for exactly
+this reason: a breakpoint broken by a stray timestamp shows up as a column of
+zeros rather than as a 10x invoice.
 
 **Output is the expensive half.** 555 output tokens per posting costs more than
 every input token combined, cached and uncached. The lever on this bill is how

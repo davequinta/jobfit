@@ -67,6 +67,7 @@ CREATE TABLE IF NOT EXISTS ingest_issues (
     feed_url   TEXT,
     kind       TEXT    NOT NULL,  -- fetch_error | parse_error | missing_field
                                   -- | unparsed_title | empty_feed | robots_blocked
+                                  -- | republished
     detail     TEXT    NOT NULL,
     sample     TEXT,              -- truncated raw record
     created_at TEXT    NOT NULL

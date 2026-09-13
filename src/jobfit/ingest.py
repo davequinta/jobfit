@@ -153,10 +153,11 @@ def store(conn: sqlite3.Connection, postings: list[Posting], run_id: int, now: s
     Two things count as already stored. The dedupe key catches the same URL
     seen again. A second check catches the same job republished under a new
     one: boards reissue a listing at `...-ai` and then `...-ai-1`, which is a
-    different canonical URL and therefore a different key, and thirteen of the
-    first 846 postings were one job twice. Matching on source, company and
-    title instead is a judgement — two roles really can share a title — so
-    every merge is reported rather than made quietly.
+    different canonical URL and therefore a different key, and among the first
+    846 postings ten company-and-title pairs within a source appeared more than
+    once, sixteen extra rows. Matching on source, company and title instead is
+    a judgement — two roles really can share a title — so every merge is
+    reported rather than made quietly.
     """
     stored_rows = conn.execute(
         "SELECT dedupe_key, source, company, title, url FROM postings").fetchall()

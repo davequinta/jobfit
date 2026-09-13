@@ -56,6 +56,11 @@ postings  survive    scored
 
 The funnel shape matters for cost. Never send all 400 postings to the model.
 
+*Amended 2026-09-13.* The numbers above are the design estimate. The first full
+run was 846 postings → 135 surviving → 135 scored (ingested 2026-08-22, scored
+2026-08-23): the prefilter cut 84%, inside its 50–85% band. After the 2026-09-08
+ingest the corpus held 1,266 postings, 163 of them surviving stage 2.
+
 ### Stage 1 — ingest
 
 Pull postings from feeds. Normalize to a common schema. Dedupe. Store raw.
@@ -246,6 +251,11 @@ get cut under time pressure. Do not cut it.
    out of hundreds. Target: precision > 0.8, recall > 0.6.
 4. Re-run evals after every rubric change. Log the numbers in `evals/results.md`
    with the date and what changed. That log is the README's most credible content.
+
+*Amended 2026-09-13.* The set measured on 2026-09-07 held 39 labels — 22 apply,
+17 skip, none borderline — so the correlation on the borderline postings in
+point 2 has never been measured. By 2026-09-13 the label file held 53 labels, 30
+apply and 23 skip, still none borderline.
 
 ---
 
