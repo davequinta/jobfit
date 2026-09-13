@@ -32,10 +32,11 @@ illustration. The queue file written that day lists 5 postings, down to a score
 of 58; at the shipped threshold of 70 the same scores give 1, and at the
 threshold of 25 set on 2026-09-07 they give 45. The corpus has grown since —
 1,266 postings stored, 163 surviving stage 2 — and on 2026-09-13 all 163 were
-scored under the current rubric, 82 of them at or above 25. What you end up
-reading is `queue/YYYY-MM-DD.md`: postings best first, each with its score, the
-link, three bullets on why it fits and one to three on why it might not. Half an
-hour of reading instead of a week of it.
+scored under the current rubric, 82 of them at or above 25 and 59 at or above
+the threshold of 35 set on 2026-09-13. What you end up reading is
+`queue/YYYY-MM-DD.md`: postings best first, each with its score, the link, three
+bullets on why it fits and one to three on why it might not. Half an hour of
+reading instead of a week of it.
 
 ## Why it is shaped this way
 
@@ -85,9 +86,10 @@ a thing you read, and every application stays a decision you make.
 Being blunt about what that means: the funnel runs end to end, and the scorer
 has now been measured against 39 hand labels rather than trusted. That
 measurement is what moved the queue threshold from 70 to 25 — at 70 the tool was
-surfacing 1 posting in 22 that deserved one. Read `evals/results.md` before
-quoting any of it: n is 39, the set has no borderline labels, and its base rate
-flatters precision.
+surfacing 1 posting in 22 that deserved one — and the re-measurement of
+2026-09-13 is what moved it to 35. Read `evals/results.md` before quoting any of
+it: n is 39, the set has no borderline labels, and its base rate flatters
+precision.
 
 ## This is a workflow, not an agent
 
@@ -559,7 +561,7 @@ mixing two generations of results.
 ## The queue
 
 ```bash
-jobfit queue                      # threshold 25 by default — see evals/results.md
+jobfit queue                      # threshold 35 by default — see evals/results.md
 jobfit queue --threshold 40       # narrow it for one run
 jobfit queue --day 2026-08-22     # re-render a specific day
 jobfit queue --any-rubric         # include scores from older rubrics too
@@ -621,11 +623,11 @@ hidden. `sqlite3 data/jobfit.db` and:
 SELECT (SELECT count(*) FROM postings) AS ingested,
        (SELECT count(*) FROM prefilter_verdicts WHERE rejected_reason IS NULL) AS survived,
        (SELECT count(*) FROM scores) AS scored,
-       (SELECT count(*) FROM scores WHERE fit_score >= 25) AS at_or_above_25;
--- 1266 | 163 | 298 | 133
+       (SELECT count(*) FROM scores WHERE fit_score >= 35) AS at_or_above_35;
+-- 1266 | 163 | 298 | 93
 -- scored includes 96 stale postings still on the previous rubric. `jobfit queue`
--- carries 82 of the 133: stage 2 now rejects the other 51, 30 of them on the
--- previous rubric and 21 on the current one
+-- carries 59 of the 93: stage 2 now rejects the other 34, 18 of them on the
+-- previous rubric and 16 on the current one
 
 -- Why a posting was thrown away, with the exact phrase that did it
 SELECT p.title, v.rejected_reason, v.detail
