@@ -190,7 +190,7 @@ src/jobfit/
   Data                        schema.sql  templates/  templates/ui.html
 
 Tracked here, and written for you by jobfit init
-  config.yaml                                                ← jobfit init
+  config.yaml                                               ← jobfit init
 
 Created by you, gitignored
   profile/stack.yaml   profile/cv.md                        ← jobfit init
