@@ -3,6 +3,11 @@
 `jobfit init` scaffolds a blank `profile/cv.md`, and filling it in by hand is the
 single biggest piece of setup friction: everyone already has a CV, it is just in
 the wrong format. This converts the one they have.
+
+The CV below is invented — name, employer and dates. The numbers start with 0,
+which no Salvadoran number does, so they cannot reach anyone. They keep the
+real +503 country code on purpose, because inferring the Location section from
+it is what the converter is asked to do.
 """
 
 from pathlib import Path
@@ -11,20 +16,21 @@ import pytest
 
 from jobfit import cvimport
 
-RAW = """David Quintanilla
+RAW = """Lucía Ejemplo
 Software Engineer
-+503 7868 2451
-Full Stack Engineer, TeamsWell, Feb 2023 - Present
++503 0000 0000
+Full Stack Engineer, Ficticia Software, Mar 2021 - Present
 Led the frontend team.
+References: Mario Inventado, +503 0000 0001
 """
 
-CONVERTED = """# David Quintanilla
+CONVERTED = """# Lucía Ejemplo
 
 **Location:** El Salvador (UTC-6). Remote.
 
 ## Work experience
 
-### Full Stack Engineer — TeamsWell
+### Full Stack Engineer — Ficticia Software
 """
 
 
@@ -56,14 +62,14 @@ def test_reads_a_plain_text_cv(project):
     source = project / "cv.txt"
     source.write_text(RAW)
 
-    assert "TeamsWell" in cvimport.extract_text(source)
+    assert "Ficticia Software" in cvimport.extract_text(source)
 
 
 def test_reads_a_markdown_cv(project):
     source = project / "cv.md"
     source.write_text(RAW)
 
-    assert "TeamsWell" in cvimport.extract_text(source)
+    assert "Ficticia Software" in cvimport.extract_text(source)
 
 
 def test_an_unsupported_format_says_which_ones_work(project):
@@ -100,6 +106,15 @@ def test_the_instructions_forbid_inventing_facts():
     system = str(cvimport.build_request(RAW)["system"]).lower()
 
     assert "invent" in system or "do not add" in system
+
+
+def test_the_instructions_tell_it_to_drop_referees():
+    """A referee's name and number are someone else's personal data. They have
+    no bearing on the score and would otherwise sit in profile/cv.md and in
+    every cached prompt."""
+    system = str(cvimport.build_request(RAW)["system"]).lower()
+
+    assert "omit referees" in system
 
 
 def test_convert_returns_the_markdown(project):
@@ -165,10 +180,10 @@ def test_the_command_is_reachable_from_the_cli():
 
 
 def test_todays_date_is_passed_in_because_the_model_does_not_know_it():
-    """Found by converting a real CV: the model computed "roughly 6.5 years"
-    from a May 2019 start date in August 2026, which is 7 years 3 months. Left
-    to itself it reckons against its training cutoff and undercounts — and years
-    of experience is exactly what postings state a minimum for."""
+    """Found by converting a real CV: the model called seven years and three
+    months of experience "roughly 6.5 years". Left to itself it reckons against
+    its training cutoff and undercounts — and years of experience is exactly
+    what postings state a minimum for."""
     request = cvimport.build_request(RAW, today="2026-08-22")
 
     assert "2026-08-22" in request["messages"][0]["content"]
