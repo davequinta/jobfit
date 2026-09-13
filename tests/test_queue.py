@@ -54,6 +54,7 @@ def conn(tmp_path, monkeypatch):
              _json(why_fit), _json(why_not), _json(flags), "claude-sonnet-5", "abc123",
              1000, 300, 2800, 0, NOW),
         )
+        _survives_stage_two(connection, index)
     connection.commit()
     yield connection
     connection.close()
@@ -62,6 +63,40 @@ def conn(tmp_path, monkeypatch):
 def _json(values: list[str]) -> str:
     import json
     return json.dumps(values)
+
+
+def _survives_stage_two(conn, posting_id: int, reason=None) -> None:
+    conn.execute(
+        "INSERT OR REPLACE INTO prefilter_verdicts (posting_id, rejected_reason, detail, "
+        "stack_hits_json, evaluated_at) VALUES (?,?,'','[]',?)",
+        (posting_id, reason, NOW),
+    )
+
+
+def _add_scored_posting(conn, posting_id: int, company: str, fit: int, *,
+                        reason=None, version: str = "abc123", verdict: bool = True) -> None:
+    """A posting with a score, and by default a stage 2 verdict that passes it."""
+    conn.execute(
+        """INSERT INTO postings (id, dedupe_key, source, feed_url, url, canonical_url,
+                                 company, title, location_raw, description_text, published_at,
+                                 raw_json, first_seen_at, last_seen_at, first_seen_run)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,1)""",
+        (posting_id, f"key{posting_id}", "weworkremotely", "https://f",
+         f"https://example.com/{posting_id}", f"https://example.com/{posting_id}", company,
+         "Senior Engineer", "Anywhere in the World", "description",
+         "2026-08-20T09:00:00+00:00", "{}", NOW, NOW),
+    )
+    conn.execute(
+        """INSERT INTO scores (posting_id, fit_score, confidence, seniority_match,
+               stack_overlap_json, stack_gaps_json, ai_role_signal, location_eligible,
+               comp_range, why_fit_json, why_not_json, red_flags_json, model,
+               prompt_version, scored_at)
+           VALUES (?,?,'high','match','[]','[]',0,1,NULL,'[]','[]','[]','claude-sonnet-5',?,?)""",
+        (posting_id, fit, version, NOW),
+    )
+    if verdict:
+        _survives_stage_two(conn, posting_id, reason)
+    conn.commit()
 
 
 # --- the markdown queue ------------------------------------------------------
@@ -110,6 +145,59 @@ def test_write_queue_lands_on_a_dated_path(conn):
 
     assert path == Path("queue/2026-08-22.md")
     assert "Acme" in path.read_text()
+
+
+def test_a_posting_stage_two_now_rejects_never_reaches_the_queue(conn):
+    """The corpus keeps every posting it has ever seen, and one from two months
+    ago is stale forever. Scored once, it would otherwise sit at the top of the
+    queue for good."""
+    _add_scored_posting(conn, 4, "Umbrella", 91, reason="stale")
+
+    assert "Umbrella" not in [e["company"] for e in queue.entries_above(conn, threshold=70)]
+
+
+def test_a_score_from_an_older_rubric_never_reaches_the_queue(conn):
+    """Two generations of verdict in one list is what `prompt_version` exists to
+    prevent."""
+    _add_scored_posting(conn, 5, "Soylent", 95, version="older")
+
+    current = [e["company"] for e in queue.entries_above(conn, threshold=70, version="abc123")]
+    everything = [e["company"] for e in queue.entries_above(conn, threshold=70)]
+
+    assert "Soylent" not in current
+    assert "Soylent" in everything          # `--any-rubric` still reaches it
+
+
+def test_a_posting_stage_two_has_not_judged_never_reaches_the_queue(conn):
+    _add_scored_posting(conn, 6, "Hooli", 93, verdict=False)
+
+    assert "Hooli" not in [e["company"] for e in queue.entries_above(conn, threshold=70)]
+
+
+def test_every_posting_above_the_cut_is_either_queued_or_counted_once(conn):
+    """The printed reasons have to add up. A posting with no stage 2 verdict and
+    an old score once counted under both, so the report overstated what was left
+    out."""
+    _add_scored_posting(conn, 4, "Umbrella", 91, reason="stale")
+    _add_scored_posting(conn, 5, "Soylent", 95, version="older")
+    _add_scored_posting(conn, 6, "Hooli", 93, version="older", verdict=False)
+    above = conn.execute("SELECT count(*) FROM scores WHERE fit_score >= 70").fetchone()[0]
+
+    queued = queue.entries_above(conn, threshold=70, version="abc123")
+    skipped = queue.left_out(conn, threshold=70, version="abc123")
+
+    assert len(queued) + sum(skipped.values()) == above
+    assert skipped == {"rejected": 1, "older_rubric": 1, "unfiltered": 1}
+
+
+def test_what_the_queue_leaves_out_is_counted_by_reason(conn):
+    _add_scored_posting(conn, 4, "Umbrella", 91, reason="stale")
+    _add_scored_posting(conn, 5, "Soylent", 95, version="older")
+    _add_scored_posting(conn, 6, "Hooli", 93, verdict=False)
+
+    assert queue.left_out(conn, threshold=70, version="abc123") == {
+        "rejected": 1, "older_rubric": 1, "unfiltered": 1,
+    }
 
 
 # --- the tracking CSV --------------------------------------------------------
@@ -174,6 +262,7 @@ def _csv_rows() -> list[dict]:
 
 def test_main_writes_both_artifacts_and_reports_them(conn, capsys, monkeypatch):
     monkeypatch.setattr(queue.db, "connect", lambda _: conn)
+    monkeypatch.setattr(queue, "current_version", lambda *_: "abc123")
     Path("config.yaml").write_text("db_path: data/x.db\n")
 
     exit_code = queue.main(["--day", "2026-08-22"])
@@ -187,11 +276,85 @@ def test_main_writes_both_artifacts_and_reports_them(conn, capsys, monkeypatch):
 
 def test_main_is_explicit_when_nothing_cleared_the_bar(conn, capsys, monkeypatch):
     monkeypatch.setattr(queue.db, "connect", lambda _: conn)
+    monkeypatch.setattr(queue, "current_version", lambda *_: "abc123")
     Path("config.yaml").write_text("db_path: data/x.db\n")
 
     queue.main(["--day", "2026-08-22", "--threshold", "99"])
 
     assert "0 postings" in capsys.readouterr().out
+
+
+def test_main_says_what_it_left_out_and_why(conn, capsys, monkeypatch):
+    _add_scored_posting(conn, 4, "Umbrella", 91, reason="stale")
+    _add_scored_posting(conn, 5, "Soylent", 95, version="older")
+    monkeypatch.setattr(queue.db, "connect", lambda _: conn)
+    monkeypatch.setattr(queue, "current_version", lambda *_: "abc123")
+    Path("config.yaml").write_text("db_path: data/x.db\n")
+
+    queue.main(["--day", "2026-08-22"])
+
+    out = capsys.readouterr().out
+    assert "stage 2 rejects them now" in out
+    assert "older rubric" in out
+
+
+def test_any_rubric_queues_every_generation_of_score(conn, capsys, monkeypatch):
+    _add_scored_posting(conn, 5, "Soylent", 95, version="older")
+    monkeypatch.setattr(queue.db, "connect", lambda _: conn)
+    Path("config.yaml").write_text("db_path: data/x.db\n")
+
+    queue.main(["--day", "2026-08-22", "--any-rubric"])
+
+    assert "Soylent" in Path("queue/2026-08-22.md").read_text()
+
+
+def test_main_refuses_rather_than_guessing_when_the_rubric_is_unreadable(conn, capsys, monkeypatch):
+    """Queueing every score instead would mix rubric generations silently."""
+    monkeypatch.setattr(queue.db, "connect", lambda _: conn)
+    Path("config.yaml").write_text("db_path: data/x.db\n")
+    Path("profile").mkdir()
+    Path("profile/stack.yaml").write_text("stack: []\n")
+
+    code = queue.main(["--day", "2026-08-22", "--cv", "nope.md"])
+
+    err = capsys.readouterr().err
+    assert code == 2
+    assert "nope.md" in err
+    assert "--any-rubric" in err
+
+
+def test_an_empty_queue_after_a_rubric_change_does_not_blame_the_threshold(
+        conn, capsys, monkeypatch):
+    """After a rubric change every survivor is on the older rubric and the queue is
+    empty. The fix is `jobfit score`, and pointing at the threshold sends you
+    tuning the one thing that was never the problem."""
+    monkeypatch.setattr(queue.db, "connect", lambda _: conn)
+    monkeypatch.setattr(queue, "current_version", lambda *_: "a-newer-rubric")
+    Path("config.yaml").write_text("db_path: data/x.db\n")
+
+    queue.main(["--day", "2026-08-22"])
+
+    out = capsys.readouterr().out
+    assert "older rubric" in out
+    assert "lowering the threshold" not in out
+
+
+def test_an_empty_queue_of_stale_postings_does_not_blame_the_threshold(
+        conn, capsys, monkeypatch):
+    """Two weeks without an ingest and stage 2 rejects everything scored. The
+    postings did clear the bar, and the fix is `jobfit ingest`."""
+    for posting_id in (1, 2, 3):
+        _survives_stage_two(conn, posting_id, reason="stale")
+    conn.commit()
+    monkeypatch.setattr(queue.db, "connect", lambda _: conn)
+    monkeypatch.setattr(queue, "current_version", lambda *_: "abc123")
+    Path("config.yaml").write_text("db_path: data/x.db\n")
+
+    queue.main(["--day", "2026-08-22"])
+
+    out = capsys.readouterr().out
+    assert "stage 2 rejects them now" in out
+    assert "lowering the threshold" not in out
 
 
 def test_the_queue_command_is_reachable_from_the_cli():
