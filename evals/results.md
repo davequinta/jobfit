@@ -28,6 +28,10 @@ points, but the model never used the top half of it: the highest score in 135
 postings was 78 and the mass sits between 15 and 40. A threshold of 70 on a
 scale that behaves like 0–50 rejects nearly everything.
 
+> **Erratum, 2026-09-13.** The `apply` median is 33, not 34. With 22 scores the
+> median is the mean of the 11th and 12th, 32 and 34; 34 is the upper median.
+> The sentence above is left as it was written.
+
 ### Threshold sweep
 
 Same 39 labels, same stored scores, no re-scoring.
@@ -48,6 +52,14 @@ The SPEC targets — precision > 0.8, recall > 0.6 — are met between 20 and 25
 nowhere near 70. 25 is the shipped value: it holds precision at 87% with two
 false positives, and the sample flatters precision (see below), so the more
 conservative of the two passing cuts is the honest choice.
+
+> **Erratum, 2026-09-13.** 25 does not meet both targets on these scores. Recall
+> at 25 is 13 of 22, 59%, under 0.6. Checked at every integer threshold, only 19
+> and 20 meet precision > 0.8 and recall > 0.6; at 21 and 22 precision is exactly
+> 80%, which fails the strict target. So the threshold shipped on 2026-09-07 was
+> already below the recall target on the scores it was chosen from. The
+> paragraph above is left as it was written; the 2026-09-13 entry measures 25
+> again under the fixed rubric, where it does meet both.
 
 ### Where the model and I disagreed
 
@@ -162,6 +174,110 @@ the rubric change above could not have been measured against them at all. Stage
 age says nothing about whether the scorer judges it well. Without that, every
 eval set silently expires a fortnight after it is built.
 
+## 2026-09-13 — rubric e39642e40c3c, measured
+
+The same 39 labels as the 2026-09-07 entries, scored again under the fixed
+rubric. The labels are taken as they were in commit c1349ac, so the rubric is
+the only thing that changed; the threshold stays at 25. The row at the bottom is
+dated 2026-09-13 because `jobfit eval` stamps UTC — the run was 2026-09-12
+23:41–23:53 -0600.
+
+```bash
+jobfit score --labels-only        # the 79 postings in evals/labeled.jsonl; c1349ac's 39 are among them
+git show c1349ac:evals/labeled.jsonl > "$TMPDIR/labels-c1349ac.jsonl"
+jobfit eval --labels "$TMPDIR/labels-c1349ac.jsonl" --note "rubric e39642e40c3c: examples now sum; explicit no-adjustment rule"
+jobfit eval --labels "$TMPDIR/labels-c1349ac.jsonl" --threshold N    # each sweep row
+```
+
+### The prediction
+
+Written on 2026-09-07, before the run: *scores rise substantially and the
+threshold that was right for the old scale is no longer right for the new one.*
+
+**Scores rose — for `apply` far more than for `skip` — and the top of the scale
+did not move.** Of the 39 postings, 35 rose, 2 were unchanged and 2 fell; mean
+change +9.1, median +6, range −5 to +45.
+
+| | f227c97dba81 | e39642e40c3c | mean change |
+|---|---|---|---|
+| `apply` (22) | 15–78, median 33 | 22–78, median 47.5 | +12.4 (19 rose, 1 fell) |
+| `skip` (17) | 8–26, median 18 | 10–34, median 22 | +4.8 (16 rose, 1 fell) |
+
+Two of the 39 now score 70 or more; the highest is still 78.
+
+**The second half did not hold.** At 25 the new scores meet both SPEC targets —
+precision 18 of 21, recall 18 of 22 — and every threshold from 23 to 38 meets
+them. The premise was also wrong: on the old scores 25 never met them. Recall
+there was 13 of 22, 59%, and only 19 and 20 cleared both targets, not "between 20
+and 25" as the first entry says. The old `apply` median was 33, not 34.
+
+### Threshold sweep
+
+Same 39 labels, scores under e39642e40c3c.
+
+| threshold | TP | FP | FN | TN | precision | recall |
+|---|---|---|---|---|---|---|
+| 70 | 2 | 0 | 20 | 17 | 2/2 = 100% | 2/22 = 9% |
+| 60 | 5 | 0 | 17 | 17 | 5/5 = 100% | 5/22 = 23% |
+| 50 | 10 | 0 | 12 | 17 | 10/10 = 100% | 10/22 = 45% |
+| 40 | 13 | 0 | 9 | 17 | 13/13 = 100% | 13/22 = 59% |
+| 35 | 16 | 0 | 6 | 17 | 16/16 = 100% | 16/22 = 73% |
+| 30 | 18 | 3 | 4 | 14 | 18/21 = 86% | 18/22 = 82% |
+| 25 | 18 | 3 | 4 | 14 | 18/21 = 86% | 18/22 = 82% |
+| 20 | 22 | 11 | 0 | 6 | 22/33 = 67% | 22/22 = 100% |
+| 15 | 22 | 14 | 0 | 3 | 22/36 = 61% | 22/22 = 100% |
+
+### Where the model and I disagreed, at threshold 25
+
+**False positives** — surfaced, but I would not apply:
+
+- **34** — Edfinity, Senior Software Engineer, remote (was 26)
+- **32** — Revenuecat, Senior DevOps / DevEx Engineer (was 26)
+- **31** — Tenchi Security, DevOps Engineer (was 22)
+
+**False negatives** — I would apply; the model scored them under 25:
+
+- **24** — Intellectsoft, Senior Shopify Full-stack Developer (IR-471) (was 18)
+- **22** — Aker Systems, Principal Software Engineer - Product team (was 18)
+- **22** — Base.com, Full-stack Developer (BL paczka) (was 15)
+- **22** — Ci&t, [Job -26953] Senior Full Stack Developer (React/.Net) (was 18)
+
+Five of the nine false negatives from 2026-09-07 now surface: Samsara 22 → 67,
+Tiugo Technologies 22 → 63, Collaboration.Ai (Senior AI Engineer) 20 → 48,
+Mitre Media 22 → 38, Collaboration.Ai (Senior Software Engineer) 18 → 31.
+
+### Recommendation, not applied
+
+The threshold is unchanged in this commit. SPEC.md weights precision over
+recall; on this set the lowest cut with no false positives is **35** —
+precision 16 of 16, recall 16 of 22 — which gives up two true positives to drop
+three false positives. Two of those three are DevOps roles, a category stage 2
+now rejects in production before scoring, so on live postings the gain from 35
+is smaller than this table shows. A change to 35 belongs in its own commit.
+
+### What this measurement does not support
+
+- **n = 39.** At 25, precision is 86% ±15% and recall 82% ±16%.
+- **Still no borderline labels**, and still a 56% `apply` base rate that
+  flatters precision.
+- **Thirteen of the seventeen skips are DevOps or infrastructure roles** that
+  stage 2 now excludes. Two of today's three false positives are among them.
+- **Huzzle is still counted twice** — one job under two URLs, both `apply`.
+- **One scoring pass per posting.** No posting was scored twice under the same
+  rubric, so how much a score moves between identical runs is unknown, and the
+  +6 median shift is not separated from that noise.
+- **The label file has moved on.** It now holds 53 labels: one of the 39 was
+  relabelled (Newrich Network, `apply` → `skip`) and 14 were added. On those 53
+  at threshold 25: precision 23 of 28, recall 23 of 30, 5 false positives, 7
+  false negatives.
+
+### Cost
+
+79 postings — everything in the label file — scored 2026-09-13T05:41:42Z to
+05:53:26Z on `claude-sonnet-5`: 109,788 uncached input, 45,055 output, 415,194
+cache-read and 5,323 cache-write tokens. **$0.7665**, against $1.5112 for the same
+tokens without caching.
+
 ---
 
 # Eval results
@@ -175,3 +291,4 @@ Counts, not ratios: with a forty-posting set the third decimal is noise.
 |---|---|---|---|---|---|---|---|
 | 2026-09-07 | f227c97dba81 | 70 | 1 of 1 | 1 of 22 | 0 | 21 | baseline: the threshold the tool shipped with |
 | 2026-09-07 | f227c97dba81 | 25 | 13 of 15 | 13 of 22 | 2 | 9 | swept on the same stored scores; no re-score |
+| 2026-09-13 | e39642e40c3c | 25 | 18 of 21 | 18 of 22 | 3 | 4 | rubric e39642e40c3c: examples now sum; explicit no-adjustment rule |

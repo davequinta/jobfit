@@ -294,7 +294,8 @@ def load_rubric(instructions_path: str, cv_path: str, stack_path: str) -> Rubric
 
 
 def postings_to_score(conn: sqlite3.Connection, version: str,
-                      rescore: bool = False, labels: str | Path | None = None) -> list:
+                      rescore: bool = False, labels: str | Path | None = None,
+                      labels_only: bool = False) -> list:
     """Survivors of stage 2 that this rubric has not already judged.
 
     The rubric version is the cache key, and it is the right one: the same
@@ -308,6 +309,10 @@ def postings_to_score(conn: sqlite3.Connection, version: str,
     weeks, so without this every eval set stops being scoreable a fortnight
     after it is built — and a rubric change after that could never be measured
     against it. Age says nothing about whether the scorer judges well.
+
+    `labels_only` drops the survivors and scores the labelled set alone. A
+    rubric change is measured against the labels, and the survivors are most
+    of the bill: 202 postings against 79 the first time it mattered.
     """
     labelled = ()
     if labels and Path(labels).is_file():
@@ -317,11 +322,14 @@ def postings_to_score(conn: sqlite3.Connection, version: str,
         )
 
     placeholders = ",".join("?" * len(labelled)) or "NULL"
+    wanted = f"p.url IN ({placeholders})"
+    if not labels_only:
+        wanted = f"(v.rejected_reason IS NULL OR {wanted})"
     return conn.execute(
         f"""SELECT p.* FROM postings p
              JOIN prefilter_verdicts v ON v.posting_id = p.id
              LEFT JOIN scores s ON s.posting_id = p.id
-            WHERE (v.rejected_reason IS NULL OR p.url IN ({placeholders}))
+            WHERE {wanted}
               AND (? OR s.posting_id IS NULL OR s.prompt_version != ?)
             ORDER BY p.published_at DESC""",
         (*labelled, 1 if rescore else 0, version),
@@ -338,6 +346,9 @@ def main(argv: list[str] | None = None) -> int:
                         help="score postings this rubric has already judged, and pay again")
     parser.add_argument("--labels", default="evals/labeled.jsonl",
                         help="also score everything in this eval set, however old it is")
+    parser.add_argument("--labels-only", action="store_true",
+                        help="score only the eval set, to measure a rubric change without "
+                             "paying for every survivor")
     args = parser.parse_args(argv)
 
     runtime.configure_logging()
@@ -348,6 +359,10 @@ def main(argv: list[str] | None = None) -> int:
         args.cv: "run `jobfit init` to scaffold it, then replace it with your CV",
         rubric_path: "run `jobfit init` to create it",
     })
+    if args.labels_only and not Path(args.labels).is_file():
+        # Without the file, --labels-only would score nothing and exit 0,
+        # which reads exactly like "already up to date".
+        problems.append(f"--labels-only needs {args.labels}, which does not exist")
     if problems:
         for problem in problems:
             print(f"jobfit score: {problem}", file=sys.stderr)
@@ -361,12 +376,14 @@ def main(argv: list[str] | None = None) -> int:
     conn = runtime.open_db(args)
 
     version = prompt_version(rubric)
-    pending = postings_to_score(conn, version, rescore=args.rescore, labels=args.labels)
+    pending = postings_to_score(conn, version, rescore=args.rescore, labels=args.labels,
+                                labels_only=args.labels_only)
     if args.limit:
         pending = pending[: args.limit]
 
     if not pending:
-        print(f"Every surviving posting is already scored under rubric {version}. "
+        which = f"posting in {args.labels}" if args.labels_only else "surviving posting"
+        print(f"Every {which} is already scored under rubric {version}. "
               "Nothing to do — `--rescore` pays for them again.")
         conn.close()
         return 0

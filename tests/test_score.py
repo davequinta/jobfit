@@ -248,15 +248,15 @@ def test_store_score_replaces_an_earlier_score_for_the_same_posting(conn):
     assert [r["fit_score"] for r in rows] == [41]
 
 
-def _store_posting(conn) -> None:
+def _store_posting(conn, posting=POSTING) -> None:
     run_id = ingest.start_run(conn, "2026-08-22T09:00:00+00:00")
     conn.execute(
         """INSERT INTO postings (id, dedupe_key, source, feed_url, url, canonical_url,
                                  company, title, description_text, published_at, raw_json,
                                  first_seen_at, last_seen_at, first_seen_run)
            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
-        (POSTING["id"], "k", "test", "https://f", POSTING["url"], POSTING["url"],
-         POSTING["company"], POSTING["title"], POSTING["description_text"],
+        (posting["id"], f"k{posting['id']}", "test", "https://f", posting["url"], posting["url"],
+         posting["company"], posting["title"], posting["description_text"],
          "2026-08-20T09:00:00+00:00", "{}", "2026-08-22T09:00:00+00:00",
          "2026-08-22T09:00:00+00:00", run_id),
     )
@@ -353,13 +353,13 @@ def test_a_missing_cv_is_an_actionable_message_not_a_traceback(tmp_path, monkeyp
 # key: same rubric and same posting means the same answer.
 
 
-def _survives_stage_two(conn, reason=None) -> None:
+def _survives_stage_two(conn, reason=None, posting=POSTING) -> None:
     """`_store_posting` stores a posting but no verdict, and stage 3 only ever
     looks at postings stage 2 passed."""
     conn.execute(
         "INSERT INTO prefilter_verdicts (posting_id, rejected_reason, detail, "
         "stack_hits_json, evaluated_at) VALUES (?,?,'','[]','2026-08-22T09:00:00+00:00')",
-        (POSTING["id"], reason),
+        (posting["id"], reason),
     )
     conn.commit()
 
@@ -435,3 +435,65 @@ def test_scoring_the_eval_set_still_skips_what_this_rubric_judged(conn, tmp_path
     pending = score.postings_to_score(conn, score.prompt_version(RUBRIC), labels=labels)
 
     assert pending == []
+
+
+def test_labels_only_scores_the_eval_set_and_not_the_survivors(conn, tmp_path):
+    """Measuring a rubric change needs the labelled postings, not the queue. The
+    first time it mattered, the survivors were most of a 202-posting bill."""
+    survivor = {**OTHER_POSTING, "url": "https://example.com/jobs/8"}
+    _store_posting(conn)
+    _survives_stage_two(conn, reason="stale")
+    _store_posting(conn, survivor)
+    _survives_stage_two(conn, posting=survivor)
+    labels = tmp_path / "labeled.jsonl"
+    labels.write_text(json.dumps({"url": POSTING["url"], "label": "apply", "reason": ""}) + "\n")
+    version = score.prompt_version(RUBRIC)
+
+    everything = score.postings_to_score(conn, version, labels=labels)
+    only_labelled = score.postings_to_score(conn, version, labels=labels, labels_only=True)
+
+    assert sorted(row["id"] for row in everything) == [POSTING["id"], survivor["id"]]
+    assert [row["id"] for row in only_labelled] == [POSTING["id"]]
+
+
+def test_labels_only_without_a_labels_file_refuses_rather_than_scoring_nothing(
+        tmp_path, monkeypatch, capsys):
+    """Scoring an empty set exits 0 with "nothing to do", which is exactly what
+    a successful run looks like."""
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "config.yaml").write_text("db_path: data/x.db\n")
+    (tmp_path / "profile").mkdir()
+    (tmp_path / "profile" / "stack.yaml").write_text("stack: []\n")
+    (tmp_path / "profile" / "cv.md").write_text("# Jane Doe\n")
+
+    exit_code = score.main(["--labels-only", "--labels", "missing.jsonl"])
+
+    assert exit_code == 2
+    assert "missing.jsonl" in capsys.readouterr().err
+
+
+def test_labels_only_reaches_the_query_from_the_command_line(tmp_path, monkeypatch):
+    """The flag was once parsed, checked for a labels file, and then dropped on
+    the way to the query. The tests above call `postings_to_score` directly and
+    passed; the command would have scored all 202 postings instead of 79. A
+    review caught it before the run, and this is the test that would have."""
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "config.yaml").write_text("db_path: data/x.db\n")
+    (tmp_path / "profile").mkdir()
+    (tmp_path / "profile" / "stack.yaml").write_text("stack: []\n")
+    (tmp_path / "profile" / "cv.md").write_text("# Jane Doe\n")
+    (tmp_path / "labeled.jsonl").write_text(
+        json.dumps({"url": POSTING["url"], "label": "apply", "reason": ""}) + "\n")
+    received = {}
+
+    def recording_postings_to_score(conn, version, **options):
+        received.update(options)
+        return []
+
+    monkeypatch.setattr(score, "postings_to_score", recording_postings_to_score)
+    monkeypatch.setattr("anthropic.Anthropic", lambda: object())
+
+    exit_code = score.main(["--labels-only", "--labels", "labeled.jsonl", "--db", ":memory:"])
+
+    assert exit_code == 0
+    assert received["labels_only"] is True

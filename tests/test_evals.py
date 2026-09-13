@@ -210,6 +210,24 @@ def test_results_entry_records_the_numbers_and_why_they_moved():
     assert "1 of 2" in entry
 
 
+def test_rubric_versions_only_count_the_labelled_postings():
+    """Re-scoring just the eval set leaves the rest of the corpus on the old
+    rubric. That is not a mixed measurement, and the row must name the new one."""
+    scored = [
+        {"url": "a", "prompt_version": "new"},
+        {"url": "b", "prompt_version": "new"},
+        {"url": "unlabelled", "prompt_version": "old"},
+    ]
+
+    assert evals.rubric_versions(scored, {"a": "apply", "b": "skip"}) == ["new"]
+
+
+def test_rubric_versions_still_catch_a_labelled_set_scored_under_two_rubrics():
+    scored = [{"url": "a", "prompt_version": "new"}, {"url": "b", "prompt_version": "old"}]
+
+    assert evals.rubric_versions(scored, {"a": "apply", "b": "skip"}) == ["new", "old"]
+
+
 # --- labelling blind ---------------------------------------------------------
 
 

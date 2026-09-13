@@ -29,7 +29,7 @@ Four commands, run in order, each reading what the last one wrote:
 
 Those are real numbers from the run of 2026-08-23, measured end to end, not an
 illustration. The corpus has grown since — 1,266 postings stored, 163 surviving
-stage 2 — and is waiting on a re-score under the current rubric. What you end up
+stage 2 — and was re-scored under the current rubric on 2026-09-13. What you end up
 reading is `queue/YYYY-MM-DD.md`: postings best first, each with its score, the
 link, three bullets on why it fits and one to three on why it might not. Half an
 hour of reading instead of a week of it.
@@ -72,11 +72,11 @@ a thing you read, and every application stays a decision you make.
 |---|---|
 | 1 — ingest | **Working.** 1,266 postings stored from 5 sources on real data. |
 | 2 — prefilter | **Working.** 163 survive; 79% cut over what the feeds still carry. |
-| 3 — score | **Working, and owed a re-run.** 135 postings scored on 2026-08-23 (`claude-sonnet-5`, synchronous path); caching confirmed live at 653,952 cache-read tokens against 170,838 uncached, $1.31 for the run. The rubric has changed since, so all of them are pending again, along with everything ingested after: 202 postings — the 163 surviving stage 2 plus the eval set, which is scored whatever its age. Stage 3 works this out itself; the rubric version is its cache key. |
+| 3 — score | **Working.** 135 postings scored on 2026-08-23 (`claude-sonnet-5`, synchronous path); caching confirmed live at 653,952 cache-read tokens against 170,838 uncached, $1.31 for the run. The rubric changed on 2026-09-07, and on 2026-09-13 everything it had not judged was re-scored under `e39642e40c3c`: the 79 postings in the label file, 53 of them labelled ($0.77, with `--labels-only`) and the other 123 stage-2 survivors ($1.04), $1.81 in all. Nothing is pending. The 96 older postings that stage 2 now rejects as stale keep their 2026-08-23 scores. |
 | Queue output | **Working.** Writes `queue/YYYY-MM-DD.md` and appends to `out/applications.csv`. |
 | Local UI | **Working.** `jobfit ui` serves one page on 127.0.0.1: the run with a threshold you can drag and watch precision and recall move, the prefilter rules with a live preview of what they would cut, and the labelling panel where the eval set gets made — blind to the scores by construction. |
 | 4 — draft | **Dropped**, not pending. Cut on 2026-09-07 rather than left as a stub — the reasoning is in SPEC.md. |
-| Evals | **Measured once, on 2026-09-07.** 39 postings, rubric `f227c97dba81`: precision 13 of 15, recall 13 of 22 at threshold 25. That is a dated record, not a running number — the set is being extended and relabelled on a fresher corpus, so `jobfit eval` today reports something different and partly unscored. Every measurement, and everything the numbers do not support, is in [evals/results.md](evals/results.md). |
+| Evals | **Measured twice, on the same 39 labels, at threshold 25.** 2026-09-07, rubric `f227c97dba81`: precision 13 of 15, recall 13 of 22. 2026-09-13, rubric `e39642e40c3c`: precision 18 of 21, recall 18 of 22. Both are dated records, not running numbers — the label file has since grown to 53, so `jobfit eval` on it reports something different. Every measurement, and everything the numbers do not support, is in [evals/results.md](evals/results.md). |
 
 Being blunt about what that means: the funnel runs end to end, and the scorer
 has now been measured against 39 hand labels rather than trusted. That
@@ -458,6 +458,7 @@ edit rather than a code change.
 jobfit score                # scores what this rubric has not judged yet, plus the eval set
 jobfit score --limit 5      # start small; this one costs money
 jobfit score --rescore      # judge them all again, and pay again
+jobfit score --labels-only  # only the eval set — measure a rubric change for less
 ```
 
 One structured call per posting against the rubric in
@@ -534,9 +535,10 @@ and every posting comes back automatically, which is also what stops two
 generations of verdict from mixing in one eval.
 
 So steady state is roughly 20 new postings a day, ~16% surviving stage 2 —
-three or four scored a night, a few cents a month. Re-scoring the whole corpus
-after a rubric change costs another $1.31; `--rescore` forces it without one,
-and the Batch API would halve either.
+three or four scored a night, a few cents a month. The re-score after the
+2026-09-07 rubric change — the 202 postings it had not judged — cost $1.81 on
+2026-09-13; `--rescore` forces a re-score without a rubric change, and the
+Batch API would halve either.
 
 `prompt_version` — a hash of the cached prefix — is stored with every score, so
 editing the rubric or the CV is visible in the database instead of silently
@@ -598,7 +600,8 @@ SELECT (SELECT count(*) FROM postings) AS ingested,
        (SELECT count(*) FROM prefilter_verdicts WHERE rejected_reason IS NULL) AS survived,
        (SELECT count(*) FROM scores) AS scored,
        (SELECT count(*) FROM scores WHERE fit_score >= 25) AS queued;
--- 1266 | 163 | 135 | 45
+-- 1266 | 163 | 298 | 133
+-- scored includes 96 stale postings still on the previous rubric; 30 of them are in queued
 
 -- Why a posting was thrown away, with the exact phrase that did it
 SELECT p.title, v.rejected_reason, v.detail
@@ -654,7 +657,7 @@ old and new scores never silently mix.
 
 ```bash
 pip install -e . && pip install pytest
-pytest                       # 219 tests, no network, no API calls, no tokens
+pytest                       # 224 tests, no network, no API calls, no tokens
 ```
 
 Every test runs offline. The feed parsers are pure functions over recorded
@@ -705,6 +708,7 @@ jobfit label                  # collects unlabelled postings into evals/labeled.
 jobfit label --review         # judge them one at a time, in the terminal
 jobfit label --review --all   # revisit verdicts you already gave
 jobfit label --rewrite        # refresh unlabelled entries, keeping labels you have made
+jobfit score --labels-only    # after a rubric change, re-score just the eval set
 jobfit eval                   # offline — measures stored scores against your labels
 jobfit eval --note "widened stack aliases"   # also logs a row to evals/results.md
 ```
@@ -777,7 +781,10 @@ wasted application; a false negative costs one posting out of hundreds.
 `evals/results.md` gets one row per run, recording the rubric version alongside
 the numbers. Never change the rubric and the threshold in the same run — if the
 numbers move you need to know which one did it. `jobfit eval` warns when the
-stored scores come from more than one rubric version.
+labelled postings were scored under more than one rubric version, and the row
+records `mixed` instead of picking one. The rest of the corpus is not asked:
+after `--labels-only` it is still on the old rubric, and that is not a mixed
+measurement.
 
 ## The local page
 

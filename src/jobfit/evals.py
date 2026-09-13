@@ -220,6 +220,17 @@ def rewrite_unlabelled(existing_lines: list[str], rows) -> list[str]:
     return kept + fresh
 
 
+def rubric_versions(scored, labels: dict[str, str]) -> list[str]:
+    """The rubric versions behind the labelled postings' scores, not the table's.
+
+    Asking the whole table broke the first time only the eval set was re-scored:
+    the rest of the corpus still carried the old rubric, the warning fired on a
+    clean measurement, and the results row recorded whichever version SQLite
+    happened to return first.
+    """
+    return sorted({row["prompt_version"] for row in scored if row["url"] in labels})
+
+
 def results_entry(outcome: Outcome, threshold: int, day: str,
                   prompt_version: str, note: str) -> str:
     """One row for `evals/results.md`.
@@ -501,30 +512,29 @@ def eval_main(argv: list[str] | None = None) -> int:
 
     conn = _open_db(args)
     try:
-        scores = {
-            row["url"]: row["fit_score"]
-            for row in conn.execute(
-                "SELECT p.url, s.fit_score FROM scores s JOIN postings p ON p.id = s.posting_id")
-        }
-        versions = [row["prompt_version"] for row in conn.execute(
-            "SELECT DISTINCT prompt_version FROM scores")]
+        scored = conn.execute(
+            "SELECT p.url, s.fit_score, s.prompt_version "
+            "FROM scores s JOIN postings p ON p.id = s.posting_id").fetchall()
     finally:
         conn.close()
+
+    scores = {row["url"]: row["fit_score"] for row in scored}
+    versions = rubric_versions(scored, labels)
 
     outcome = evaluate(labels, scores, args.threshold)
     print(report(outcome, args.threshold))
 
     if len(versions) > 1:
-        print(f"WARNING: scores come from {len(versions)} different rubric versions "
-              f"({', '.join(versions)}). Re-score before trusting these numbers.",
+        print(f"WARNING: the labelled postings were scored under {len(versions)} different "
+              f"rubric versions ({', '.join(versions)}). Re-score before trusting these numbers.",
               file=sys.stderr)
 
     if args.note:
         RESULTS_PATH.parent.mkdir(parents=True, exist_ok=True)
         if not RESULTS_PATH.is_file():
             RESULTS_PATH.write_text(RESULTS_HEADER)
-        entry = results_entry(outcome, args.threshold, db.iso_now()[:10],
-                              versions[0] if versions else "unknown", args.note)
+        version = versions[0] if len(versions) == 1 else ("mixed" if versions else "unknown")
+        entry = results_entry(outcome, args.threshold, db.iso_now()[:10], version, args.note)
         with RESULTS_PATH.open("a") as handle:
             handle.write(entry + "\n")
         print(f"logged to {RESULTS_PATH}")
