@@ -458,6 +458,7 @@ edit rather than a code change.
 jobfit score                # scores what this rubric has not judged yet, plus the eval set
 jobfit score --limit 5      # start small; this one costs money
 jobfit score --rescore      # judge them all again, and pay again
+jobfit score --labels-only  # only the eval set — measure a rubric change for less
 ```
 
 One structured call per posting against the rubric in
@@ -654,7 +655,7 @@ old and new scores never silently mix.
 
 ```bash
 pip install -e . && pip install pytest
-pytest                       # 219 tests, no network, no API calls, no tokens
+pytest                       # 224 tests, no network, no API calls, no tokens
 ```
 
 Every test runs offline. The feed parsers are pure functions over recorded
@@ -705,6 +706,7 @@ jobfit label                  # collects unlabelled postings into evals/labeled.
 jobfit label --review         # judge them one at a time, in the terminal
 jobfit label --review --all   # revisit verdicts you already gave
 jobfit label --rewrite        # refresh unlabelled entries, keeping labels you have made
+jobfit score --labels-only    # after a rubric change, re-score just the eval set
 jobfit eval                   # offline — measures stored scores against your labels
 jobfit eval --note "widened stack aliases"   # also logs a row to evals/results.md
 ```
@@ -777,7 +779,10 @@ wasted application; a false negative costs one posting out of hundreds.
 `evals/results.md` gets one row per run, recording the rubric version alongside
 the numbers. Never change the rubric and the threshold in the same run — if the
 numbers move you need to know which one did it. `jobfit eval` warns when the
-stored scores come from more than one rubric version.
+labelled postings were scored under more than one rubric version, and the row
+records `mixed` instead of picking one. The rest of the corpus is not asked:
+after `--labels-only` it is still on the old rubric, and that is not a mixed
+measurement.
 
 ## The local page
 
