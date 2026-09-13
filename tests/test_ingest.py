@@ -377,8 +377,9 @@ class _FakeClock:
 #
 # The dedupe key includes the canonical URL, which is what the spec asked for
 # and what a board defeats by republishing the same job at `...-ai` and
-# `...-ai-1`. Thirteen of the first 846 postings were the same job twice, and
-# one of them reached the eval set and counted twice toward recall.
+# `...-ai-1`. Among the first 846 postings ten company-and-title pairs within a
+# source appeared more than once, sixteen extra rows, and one of them reached
+# the eval set and counted twice toward recall.
 
 
 def posting(company="Huzzle", title="Full-Stack Developer", url="https://wwr/a",

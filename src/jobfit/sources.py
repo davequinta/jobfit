@@ -426,8 +426,9 @@ HN_TRAILING_URL = re.compile(r"\(?\s*https?://\S+\s*\)?")
 
 # Plenty of comments open with a sentence instead of pipes — "Sumble is the
 # newco from the founders of Kaggle. We are hiring…". Auditing a real run found
-# 19 of 243 dropped that way, nearly all of them genuine postings, so the name
-# is recovered from the words before the first verb. Dropping a real posting is
+# 19 of 243 comments dropped; about half were job ads that open with a sentence,
+# the rest job seekers' posts, `[flagged]` comments and chatter. So the name is
+# recovered from the words before the first verb. Dropping a real posting is
 # the expensive error here; a slightly wrong company name is not.
 HN_PROSE_VERB = re.compile(
     r"\s+(?:is|are|was|were|has|have|builds?|makes?|provides?|helps?|does|"
